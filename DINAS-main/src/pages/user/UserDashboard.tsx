@@ -72,6 +72,32 @@ export const UserDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Alert Biodata Belum Lengkap */}
+      {(!currentUser?.opdName || !currentUser?.opdName.trim()) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5 text-amber-700 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-950">
+                Langkah Wajib: Lengkapi Biodata & Instansi OPD Anda
+              </h4>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Anda belum dapat mengisi kuesioner survey sebelum melengkapi instansi terdaftar pada biodata profil Anda.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/profile?onboarding=true"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shrink-0 self-start sm:self-auto shadow-xs"
+          >
+            <span>Lengkapi Biodata Sekarang</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="bg-linear-to-r from-blue-800 via-indigo-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-blue-950/10 relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
@@ -84,7 +110,7 @@ export const UserDashboard: React.FC = () => {
           </h2>
           <div className="flex items-center gap-2 text-blue-200 text-xs sm:text-sm mt-1.5">
             <Building className="w-4 h-4 text-blue-300 shrink-0" />
-            <span className="font-medium">{currentUser?.opdName}</span>
+            <span className="font-medium">{currentUser?.opdName || '(Belum Memilih Instansi)'}</span>
           </div>
           <p className="text-blue-100/80 text-xs sm:text-sm mt-3 leading-relaxed">
             Silakan lengkapi formulir survey tahunan Kabupaten Tulang Bawang Barat sesuai dengan kewenangan instansi Anda. Pastikan data diisi secara akurat sebelum batas waktu evaluasi.

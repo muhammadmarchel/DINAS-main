@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { SURVEY_FORM_CONFIGS } from '../../data/surveyConfigs';
 import { surveyService } from '../../services/surveyService';
 import { SurveyCategoryKey } from '../../types';
@@ -14,11 +16,17 @@ import {
   CheckCircle,
   HelpCircle,
   Sparkles,
+  AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
 
 export const SurveyCatalog: React.FC = () => {
   const navigate = useNavigate();
+  const { currentUser, isAdmin } = useAuth();
+  const toast = useToast();
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
+
+  const isProfileIncomplete = !isAdmin && (!currentUser?.opdName || !currentUser?.opdName.trim());
 
   useEffect(() => {
     const all = surveyService.getAll();
@@ -28,6 +36,18 @@ export const SurveyCatalog: React.FC = () => {
     });
     setSubmissionCounts(counts);
   }, []);
+
+  const handleStartSurvey = (slug: string) => {
+    if (isProfileIncomplete) {
+      toast.warning(
+        'Harap lengkapi biodata dan asal instansi OPD Anda terlebih dahulu sebelum mengisi survey.',
+        'Lengkapi Profil'
+      );
+      navigate('/profile?onboarding=true');
+      return;
+    }
+    navigate(`/survey/form/${slug}`);
+  };
 
   const getIcon = (iconName: string) => {
     switch (iconName) {
@@ -92,6 +112,32 @@ export const SurveyCatalog: React.FC = () => {
         </div>
       </div>
 
+      {/* Incomplete profile warning banner */}
+      {isProfileIncomplete && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5 text-amber-700 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-950">
+                Biodata & Instansi Terdaftar Belum Lengkap
+              </h4>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Anda wajib memilih <strong>Instansi Terdaftar (OPD)</strong> dan melengkapi profil Anda terlebih dahulu sebelum dapat mengisi formulir survey.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/profile?onboarding=true')}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shrink-0 self-start sm:self-auto shadow-xs"
+          >
+            <span>Lengkapi Profil Sekarang</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* 5 Big Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Object.values(SURVEY_FORM_CONFIGS).map((config) => {
@@ -148,7 +194,7 @@ export const SurveyCatalog: React.FC = () => {
               <div className="grid grid-cols-2 gap-2.5 mt-6 pt-5 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => navigate(`/survey/form/${slug}`)}
+                  onClick={() => handleStartSurvey(slug)}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-colors"
                 >
                   <FilePlus2 className="w-4 h-4" />

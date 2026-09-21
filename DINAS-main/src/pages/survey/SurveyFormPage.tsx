@@ -86,6 +86,18 @@ export const SurveyFormPage: React.FC = () => {
   const [attachedFiles, setAttachedFiles] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Guard: User tidak bisa mengisi survey sebelum menyimpan biodatanya
+    if (currentUser && currentUser.role !== 'admin') {
+      if (!currentUser.opdName || !currentUser.opdName.trim()) {
+        toast.warning(
+          'Harap lengkapi biodata dan pilih instansi OPD Anda terlebih dahulu sebelum mengisi survey.',
+          'Biodata Belum Lengkap'
+        );
+        navigate('/profile?onboarding=true', { replace: true });
+        return;
+      }
+    }
+
     const listOpd = opdService.getAll();
     setOpds(listOpd);
 

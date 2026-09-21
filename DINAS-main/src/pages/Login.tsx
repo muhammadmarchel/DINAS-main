@@ -48,14 +48,14 @@ export const Login: React.FC = () => {
   const toast = useToast();
   const navigate = useNavigate();
 
-  // Helper untuk mengaktifkan sesi lokal dan langsung redirect ke dashboard
+  // Helper untuk mengaktifkan sesi lokal dan langsung redirect ke dashboard atau profile onboarding
   const activateAndRedirect = (dbUser: any, email: string, sessionMetadata?: any) => {
     const appUser: User = {
       id: String(dbUser.id || Date.now()),
       name:
+        dbUser.name ||
         sessionMetadata?.full_name ||
         sessionMetadata?.name ||
-        dbUser.name ||
         email.split('@')[0],
       username: email.split('@')[0],
       email: email,
@@ -64,23 +64,31 @@ export const Login: React.FC = () => {
         ? dbUser.opd_name.toLowerCase().replace(/\s+/g, '-')
         : '',
       opdName: dbUser.opd_name || '',
-      nip: '',
-      phone: '',
+      nip: dbUser.nip || '',
+      phone: dbUser.phone || '',
       avatarUrl: sessionMetadata?.avatar_url || '',
       status: 'active',
-      createdAt: new Date().toISOString(),
+      createdAt: dbUser.created_at || new Date().toISOString(),
     };
 
     localStorage.removeItem('tubaba_pending_email');
     setPendingEmail(null);
     setSessionUser(appUser);
-    toast.success(`Selamat datang, ${appUser.name}! Akun Anda telah aktif.`, 'Login Berhasil');
 
     if (window.location.hash || window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    navigate('/dashboard', { replace: true });
+    // Pengecekan setelah login: cek apakah opd_name atau data diri masih kosong/NULL
+    const isProfileIncomplete = !dbUser.opd_name || !dbUser.opd_name.trim();
+
+    if (appUser.role !== 'admin' && isProfileIncomplete) {
+      toast.info(`Selamat datang, ${appUser.name}! Harap lengkapi biodata dan asal instansi Anda terlebih dahulu.`, 'Lengkapi Biodata');
+      navigate('/profile?onboarding=true', { replace: true });
+    } else {
+      toast.success(`Selamat datang, ${appUser.name}! Akun Anda telah aktif.`, 'Login Berhasil');
+      navigate('/dashboard', { replace: true });
+    }
   };
 
   // Fungsi untuk memeriksa langsung status akun ke Supabase
@@ -127,7 +135,11 @@ export const Login: React.FC = () => {
   // Redirect jika sudah login aktif
   useEffect(() => {
     if (currentUser && currentUser.status === 'active') {
-      navigate('/dashboard', { replace: true });
+      if (currentUser.role !== 'admin' && (!currentUser.opdName || !currentUser.opdName.trim())) {
+        navigate('/profile?onboarding=true', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   }, [currentUser, navigate]);
 
