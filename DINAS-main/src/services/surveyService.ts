@@ -1,5 +1,4 @@
 import { SurveySubmission, SurveyStatus, SurveyCategoryKey } from '../types';
-import { INITIAL_SUBMISSIONS } from '../data/initialData';
 import { storage } from './storage';
 import { supabase } from '../lib/supabase';
 
@@ -16,65 +15,110 @@ export interface SurveyFilterParams {
 }
 
 export const surveyService = {
+  // Ambil data lokal (default array kosong, bukan mock)
   getAll: (): SurveySubmission[] => {
-    return storage.get<SurveySubmission[]>(SUBMISSIONS_KEY, INITIAL_SUBMISSIONS);
+    return storage.get<SurveySubmission[]>(SUBMISSIONS_KEY, []);
   },
 
   setAll: (submissions: SurveySubmission[]): void => {
     storage.set(SUBMISSIONS_KEY, submissions);
   },
 
-  // Sinkronisasi data remote dari Supabase database
+  // Helper untuk memformat data dari tabel Supabase surveys
+  formatRemoteSurveys: (rows: any[]): SurveySubmission[] => {
+    if (!rows || !Array.isArray(rows)) return [];
+
+    return rows.map((row: any) => {
+      const ansObj =
+        typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers || {};
+
+      // Respondent data
+      const respondent = ansObj.respondent || {
+        agencyName: row.opd_name || ansObj.opdName || 'OPD',
+        respondentName:
+          ansObj.createdByName ||
+          (row.user_email ? row.user_email.split('@')[0] : 'Pegawai OPD'),
+        position: ansObj.position || 'Staf OPD',
+        email: row.user_email || ansObj.email || '',
+        phone: ansObj.phone || '',
+        fillDate: (row.created_at || new Date().toISOString()).split('T')[0],
+      };
+
+      // Survey Category & Title
+      const surveyCategory: SurveyCategoryKey =
+        ansObj.surveyCategory || ansObj.categoryKey || 'DISKOMINFO';
+      const surveyTitle =
+        ansObj.surveyTitle || `Survei Kebutuhan SPBE - ${row.opd_name || 'OPD'}`;
+
+      // Actual question answers
+      const actualAnswers = ansObj.answers !== undefined ? ansObj.answers : ansObj;
+
+      // Status mapping ('submitted' -> 'Terkirim', 'draft' -> 'Draft', dll)
+      let status: SurveyStatus = 'Terkirim';
+      const rawStatus = String(row.status || '').trim().toLowerCase();
+      if (rawStatus === 'draft') {
+        status = 'Draft';
+      } else if (
+        rawStatus === 'diverifikasi' ||
+        rawStatus === 'verified' ||
+        rawStatus === 'approved'
+      ) {
+        status = 'Diverifikasi';
+      } else if (
+        rawStatus === 'perlu perbaikan' ||
+        rawStatus === 'revision' ||
+        rawStatus === 'perbaikan'
+      ) {
+        status = 'Perlu Perbaikan';
+      } else {
+        status = 'Terkirim';
+      }
+
+      return {
+        id: String(row.id),
+        surveyCategory,
+        surveyTitle,
+        opdId:
+          ansObj.opdId ||
+          (row.opd_name ? row.opd_name.toLowerCase().replace(/\s+/g, '-') : 'opd-umum'),
+        opdName: row.opd_name || ansObj.opdName || respondent.agencyName || 'OPD',
+        respondent,
+        answers: actualAnswers,
+        status,
+        currentStep: Number(ansObj.currentStep || 5),
+        submittedAt: row.created_at || ansObj.submittedAt,
+        updatedAt: row.created_at || ansObj.updatedAt || new Date().toISOString(),
+        createdAt: row.created_at || ansObj.createdAt || new Date().toISOString(),
+        createdByUserId: row.user_email || ansObj.createdByUserId || '',
+        createdByName: respondent.respondentName || row.user_email || '',
+        notesAdmin: ansObj.notesAdmin || '',
+        verifiedBy: ansObj.verifiedBy,
+        verifiedAt: ansObj.verifiedAt,
+      };
+    });
+  },
+
+  // Sinkronisasi data remote langsung dari Supabase database
   syncRemote: async (): Promise<SurveySubmission[]> => {
     try {
-      const { data, error } = await supabase
+      const { data: surveyList, error } = await supabase
         .from('surveys')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('Pemberitahuan sinkronisasi tabel surveys Supabase:', error.message);
+        console.warn('Gagal sinkronisasi data dari tabel surveys Supabase:', error.message);
         return surveyService.getAll();
       }
 
-      if (data && Array.isArray(data)) {
-        const remoteList: SurveySubmission[] = data.map((row: any) => ({
-          id: String(row.id),
-          surveyCategory: (row.survey_category || row.surveyCategory) as SurveyCategoryKey,
-          surveyTitle: row.survey_title || row.surveyTitle || '',
-          opdId: row.opd_id || row.opdId || '',
-          opdName: row.opd_name || row.opdName || '',
-          respondent: typeof row.respondent === 'string' ? JSON.parse(row.respondent) : (row.respondent || {}),
-          answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : (row.answers || {}),
-          status: (row.status || 'Terkirim') as SurveyStatus,
-          currentStep: Number(row.current_step ?? row.currentStep ?? 1),
-          submittedAt: row.submitted_at || row.submittedAt,
-          updatedAt: row.updated_at || row.updatedAt || row.created_at || new Date().toISOString(),
-          createdAt: row.created_at || row.createdAt || new Date().toISOString(),
-          createdByUserId: row.created_by_user_id || row.createdByUserId || '',
-          createdByName: row.created_by_name || row.createdByName || '',
-          notesAdmin: row.notes_admin || row.notesAdmin || '',
-          verifiedBy: row.verified_by || row.verifiedBy,
-          verifiedAt: row.verified_at || row.verifiedAt,
-        }));
-
-        const existingLocal = surveyService.getAll();
-        const map = new Map<string, SurveySubmission>();
-
-        // Masukkan data lokal demo terlebih dahulu
-        existingLocal.forEach((s) => map.set(s.id, s));
-        // Sinkronkan data dari cloud database Supabase
-        remoteList.forEach((s) => map.set(s.id, s));
-
-        const merged = Array.from(map.values()).sort(
-          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-        );
-
-        surveyService.setAll(merged);
-        return merged;
+      if (surveyList && Array.isArray(surveyList)) {
+        // Tampilkan murni data dari surveyList database Supabase (bukan mock)
+        const formatted = surveyService.formatRemoteSurveys(surveyList);
+        surveyService.setAll(formatted);
+        return formatted;
       }
     } catch (err) {
-      console.warn('Gagal sinkronisasi data survey dari Supabase:', err);
+      console.warn('Gagal terhubung ke database surveys Supabase:', err);
     }
     return surveyService.getAll();
   },
@@ -88,7 +132,11 @@ export const surveyService = {
     let list = surveyService.getAll();
 
     if (params.userId) {
-      list = list.filter((s) => s.createdByUserId === params.userId);
+      list = list.filter(
+        (s) =>
+          s.createdByUserId === params.userId ||
+          s.respondent.email === params.userId
+      );
     }
 
     if (params.opdId && params.opdId !== 'all') {
@@ -122,132 +170,180 @@ export const surveyService = {
       );
     }
 
-    // Sort newest first
-    return list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    // Urutkan yang terbaru terlebih dahulu
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
-  create: async (submission: Omit<SurveySubmission, 'id' | 'createdAt' | 'updatedAt'>): Promise<SurveySubmission> => {
-    const all = surveyService.getAll();
-    const timestamp = new Date().toISOString();
-    const nextSeq = String(all.length + 1).padStart(3, '0');
-    const newId = `SRV-2026-${nextSeq}`;
+  create: async (
+    submission: Omit<SurveySubmission, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<SurveySubmission> => {
+    const userEmail = submission.createdByUserId?.includes('@')
+      ? submission.createdByUserId
+      : submission.respondent?.email || '';
+    const opdName = submission.opdName || submission.respondent?.agencyName || '';
 
-    const newEntry: SurveySubmission = {
-      ...submission,
-      id: newId,
-      createdAt: timestamp,
-      updatedAt: timestamp,
+    const formData = {
+      surveyCategory: submission.surveyCategory,
+      categoryKey: submission.surveyCategory,
+      surveyTitle: submission.surveyTitle,
+      opdId: submission.opdId,
+      opdName: opdName,
+      respondent: submission.respondent,
+      answers: submission.answers,
+      currentStep: submission.currentStep,
+      submittedAt: submission.submittedAt || new Date().toISOString(),
+      createdByUserId: submission.createdByUserId,
+      createdByName: submission.createdByName,
+      notesAdmin: submission.notesAdmin || '',
     };
 
-    all.unshift(newEntry);
-    surveyService.setAll(all);
+    const dbStatus = submission.status === 'Draft' ? 'draft' : 'submitted';
 
-    // Kirim juga ke cloud database Supabase
     try {
-      const { error } = await supabase.from('surveys').insert([
-        {
-          id: newEntry.id,
-          survey_category: newEntry.surveyCategory,
-          survey_title: newEntry.surveyTitle,
-          opd_id: newEntry.opdId,
-          opd_name: newEntry.opdName,
-          respondent: newEntry.respondent,
-          answers: newEntry.answers,
-          status: newEntry.status,
-          current_step: newEntry.currentStep,
-          submitted_at: newEntry.submittedAt || (newEntry.status === 'Terkirim' ? timestamp : null),
-          created_by_user_id: newEntry.createdByUserId,
-          created_by_name: newEntry.createdByName,
-          notes_admin: newEntry.notesAdmin,
-          created_at: newEntry.createdAt,
-          updated_at: newEntry.updatedAt,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from('surveys')
+        .insert([
+          {
+            user_email: userEmail,
+            opd_name: opdName,
+            answers: formData,
+            status: dbStatus,
+          },
+        ])
+        .select();
 
       if (error) {
-        console.warn('Gagal menyimpan ke tabel Supabase surveys:', error.message);
+        console.error('Error insert survey ke Supabase:', error.message);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        const created = surveyService.formatRemoteSurveys(data)[0];
+        const all = surveyService.getAll();
+        all.unshift(created);
+        surveyService.setAll(all);
+        return created;
       }
     } catch (err) {
-      console.warn('Error saat mengirim survey ke Supabase:', err);
+      console.warn('Fallback error saat create survey:', err);
     }
 
+    // Local fallback jika jaringan offline
+    const fallbackId = `temp-${Date.now()}`;
+    const newEntry: SurveySubmission = {
+      ...submission,
+      id: fallbackId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const all = surveyService.getAll();
+    all.unshift(newEntry);
+    surveyService.setAll(all);
     return newEntry;
   },
 
-  update: async (id: string, updates: Partial<SurveySubmission>): Promise<SurveySubmission> => {
+  update: async (
+    id: string,
+    updates: Partial<SurveySubmission>
+  ): Promise<SurveySubmission> => {
     const all = surveyService.getAll();
     const index = all.findIndex((s) => s.id === id);
-    if (index === -1) throw new Error('Survey tidak ditemukan');
+    const existing = index !== -1 ? all[index] : ({} as SurveySubmission);
 
-    const updated = {
-      ...all[index],
+    const updated: SurveySubmission = {
+      ...existing,
       ...updates,
       updatedAt: new Date().toISOString(),
     };
 
-    all[index] = updated;
-    surveyService.setAll(all);
+    if (index !== -1) {
+      all[index] = updated;
+      surveyService.setAll(all);
+    }
 
-    // Update di cloud database Supabase
-    try {
-      const { error } = await supabase
-        .from('surveys')
-        .update({
-          survey_category: updated.surveyCategory,
-          survey_title: updated.surveyTitle,
-          opd_id: updated.opdId,
-          opd_name: updated.opdName,
-          respondent: updated.respondent,
-          answers: updated.answers,
-          status: updated.status,
-          current_step: updated.currentStep,
-          submitted_at: updated.submittedAt,
-          notes_admin: updated.notesAdmin,
-          verified_by: updated.verifiedBy,
-          verified_at: updated.verifiedAt,
-          updated_at: updated.updatedAt,
-        })
-        .eq('id', id);
+    const numericId = parseInt(String(id).replace(/\D/g, ''), 10);
+    const formData = {
+      surveyCategory: updated.surveyCategory,
+      categoryKey: updated.surveyCategory,
+      surveyTitle: updated.surveyTitle,
+      opdId: updated.opdId,
+      opdName: updated.opdName,
+      respondent: updated.respondent,
+      answers: updated.answers,
+      currentStep: updated.currentStep,
+      submittedAt: updated.submittedAt,
+      createdByUserId: updated.createdByUserId,
+      createdByName: updated.createdByName,
+      notesAdmin: updated.notesAdmin || '',
+      verifiedBy: updated.verifiedBy,
+      verifiedAt: updated.verifiedAt,
+    };
 
-      if (error) {
-        console.warn('Gagal update tabel Supabase surveys:', error.message);
+    let dbStatus = 'submitted';
+    if (updated.status === 'Draft') dbStatus = 'draft';
+    else if (updated.status === 'Diverifikasi') dbStatus = 'verified';
+    else if (updated.status === 'Perlu Perbaikan') dbStatus = 'revision';
+
+    if (!isNaN(numericId)) {
+      try {
+        await supabase
+          .from('surveys')
+          .update({
+            opd_name: updated.opdName,
+            answers: formData,
+            status: dbStatus,
+          })
+          .eq('id', numericId);
+      } catch (err) {
+        console.warn('Gagal update survey di Supabase:', err);
       }
-    } catch (err) {
-      console.warn('Error update Supabase surveys:', err);
     }
 
     return updated;
   },
 
   delete: async (id: string): Promise<boolean> => {
+    const numericId = parseInt(String(id).replace(/\D/g, ''), 10);
+    if (!isNaN(numericId)) {
+      try {
+        await supabase.from('surveys').delete().eq('id', numericId);
+      } catch (err) {
+        console.warn('Gagal delete survey di Supabase:', err);
+      }
+    }
+
     const all = surveyService.getAll();
     const filtered = all.filter((s) => s.id !== id);
     if (filtered.length === all.length) return false;
-
     surveyService.setAll(filtered);
-
-    // Hapus di cloud database Supabase
-    try {
-      await supabase.from('surveys').delete().eq('id', id);
-    } catch (err) {
-      console.warn('Error delete Supabase surveys:', err);
-    }
-
     return true;
   },
 
-  updateStatus: async (id: string, status: SurveyStatus, notesAdmin?: string, verifiedBy?: string): Promise<SurveySubmission> => {
-    return surveyService.update(id, {
+  updateStatus: async (
+    id: string,
+    status: SurveyStatus,
+    notesAdmin?: string,
+    verifiedBy?: string
+  ): Promise<SurveySubmission> => {
+    const all = surveyService.getAll();
+    const found = all.find((s) => s.id === id);
+    const currentNotes = notesAdmin !== undefined ? notesAdmin : found?.notesAdmin;
+    const currentVerifier = verifiedBy || found?.verifiedBy;
+    const verifiedAt = status === 'Diverifikasi' ? new Date().toISOString() : found?.verifiedAt;
+
+    return await surveyService.update(id, {
       status,
-      notesAdmin: notesAdmin !== undefined ? notesAdmin : undefined,
-      verifiedBy: verifiedBy || undefined,
-      verifiedAt: status === 'Diverifikasi' ? new Date().toISOString() : undefined,
+      notesAdmin: currentNotes,
+      verifiedBy: currentVerifier,
+      verifiedAt,
     });
   },
 
   getStats: (userId?: string) => {
     const all = surveyService.getAll();
-    const target = userId ? all.filter((s) => s.createdByUserId === userId) : all;
+    const target = userId
+      ? all.filter((s) => s.createdByUserId === userId || s.respondent.email === userId)
+      : all;
 
     const total = target.length;
     const diverifikasi = target.filter((s) => s.status === 'Diverifikasi').length;
@@ -268,7 +364,19 @@ export const surveyService = {
   },
 
   exportToCSV: (submissions: SurveySubmission[]): void => {
-    const headers = ['No', 'ID Survey', 'Instansi / OPD', 'Nama Responden', 'Jabatan', 'Email', 'No Telepon', 'Kategori Survey', 'Tanggal Pengisian', 'Status', 'Dibuat Oleh'];
+    const headers = [
+      'No',
+      'ID Survey',
+      'Instansi / OPD',
+      'Nama Responden',
+      'Jabatan',
+      'Email',
+      'No Telepon',
+      'Kategori Survey',
+      'Tanggal Pengisian',
+      'Status',
+      'Dibuat Oleh',
+    ];
     const rows = submissions.map((s, idx) => [
       idx + 1,
       `"${s.id}"`,
@@ -283,11 +391,16 @@ export const surveyService = {
       `"${s.createdByName.replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `rekap_survey_tubaba_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      'download',
+      `rekap_survey_tubaba_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

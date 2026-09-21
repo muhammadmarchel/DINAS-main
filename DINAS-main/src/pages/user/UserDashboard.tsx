@@ -19,6 +19,7 @@ import {
   Sparkles,
   ChevronRight,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export const UserDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -26,21 +27,37 @@ export const UserDashboard: React.FC = () => {
   const [mySurveys, setMySurveys] = useState<SurveySubmission[]>([]);
 
   useEffect(() => {
-    if (currentUser) {
-      // Filter surveys created by user or belonging to their OPD
-      const list = surveyService.getAll().filter(
-        (s) => s.createdByUserId === currentUser.id || s.opdId === currentUser.opdId
-      );
+    if (!currentUser) return;
+
+    const belongsToUser = (s: SurveySubmission) =>
+      s.createdByUserId === currentUser.id ||
+      s.createdByUserId === currentUser.email ||
+      s.respondent?.email === currentUser.email ||
+      (currentUser.opdId && s.opdId === currentUser.opdId) ||
+      (currentUser.opdName && s.opdName && s.opdName.toLowerCase() === currentUser.opdName.toLowerCase());
+
+    const loadUserSurveys = () => {
+      const list = surveyService.getAll().filter(belongsToUser);
       setMySurveys(list);
 
-      // Sync dari Supabase cloud
       surveyService.syncRemote().then((all) => {
-        const fresh = all.filter(
-          (s) => s.createdByUserId === currentUser.id || s.opdId === currentUser.opdId
-        );
+        const fresh = all.filter(belongsToUser);
         setMySurveys(fresh);
       });
-    }
+    };
+
+    loadUserSurveys();
+
+    const channel = supabase
+      .channel('realtime-user-surveys')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
+        loadUserSurveys();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUser]);
 
   const draftCount = mySurveys.filter((s) => s.status === 'Draft').length;

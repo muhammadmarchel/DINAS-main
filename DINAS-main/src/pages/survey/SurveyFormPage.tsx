@@ -7,6 +7,7 @@ import { surveyService } from '../../services/surveyService';
 import { opdService } from '../../services/opdService';
 import { SurveyCategoryKey, SurveyRespondent, OPD } from '../../types';
 import { Modal } from '../../components/common/Modal';
+import { supabase } from '../../lib/supabase';
 import {
   ChevronLeft,
   ChevronRight,
@@ -176,76 +177,120 @@ export const SurveyFormPage: React.FC = () => {
 
   const handleSaveDraft = async () => {
     try {
-      const selectedOpd = opds.find((o) => o.name === respondent.agencyName) || opds[0];
+      const userEmail = currentUser?.email || respondent.email || '';
+      const opdName = respondent.agencyName || currentUser?.opdName || '';
+
+      const formData = {
+        categoryKey,
+        surveyCategory: categoryKey,
+        surveyTitle: formConfig.title,
+        opdId: (currentUser?.opdId || respondent.agencyName || 'opd-umum').toLowerCase().replace(/\s+/g, '-'),
+        opdName: opdName,
+        respondent,
+        answers,
+        currentStep,
+        submittedAt: null,
+        createdByUserId: userEmail,
+        createdByName: currentUser?.name || respondent.respondentName,
+        notesAdmin: 'Draft tersimpan oleh pengguna',
+      };
 
       if (editId) {
-        await surveyService.update(editId, {
-          respondent,
-          answers,
-          status: 'Draft',
-          currentStep,
-        });
+        const numericId = parseInt(String(editId).replace(/\D/g, ''), 10);
+        if (!isNaN(numericId)) {
+          await supabase
+            .from('surveys')
+            .update({
+              user_email: userEmail,
+              opd_name: opdName,
+              answers: formData,
+              status: 'draft',
+            })
+            .eq('id', numericId);
+        }
       } else {
-        await surveyService.create({
-          surveyCategory: categoryKey,
-          surveyTitle: formConfig.title,
-          opdId: selectedOpd?.id || 'opd-umum',
-          opdName: respondent.agencyName,
-          respondent,
-          answers,
-          status: 'Draft',
-          currentStep,
-          createdByUserId: currentUser?.id || 'guest',
-          createdByName: currentUser?.name || respondent.respondentName,
-          notesAdmin: 'Draft tersimpan oleh pengguna',
-        });
+        await supabase
+          .from('surveys')
+          .insert([
+            {
+              user_email: userEmail,
+              opd_name: opdName,
+              answers: formData,
+              status: 'draft',
+            },
+          ]);
       }
 
+      await surveyService.syncRemote();
       toast.success('Data survey berhasil disimpan sebagai draft.', 'Draft Disimpan');
-    } catch (e) {
+    } catch (e: any) {
       toast.error('Gagal menyimpan draft survey.', 'Error');
     }
   };
 
   const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise((res) => setTimeout(res, 600));
+    await new Promise((res) => setTimeout(res, 400));
 
     try {
-      const selectedOpd = opds.find((o) => o.name === respondent.agencyName) || opds[0];
+      const userEmail = currentUser?.email || respondent.email || '';
+      const opdName = respondent.agencyName || currentUser?.opdName || '';
+
+      const formData = {
+        categoryKey,
+        surveyCategory: categoryKey,
+        surveyTitle: formConfig.title,
+        opdId: (currentUser?.opdId || respondent.agencyName || 'opd-umum').toLowerCase().replace(/\s+/g, '-'),
+        opdName: opdName,
+        respondent,
+        answers, // seluruh data jawaban form
+        currentStep: formConfig.sections.length,
+        submittedAt: new Date().toISOString(),
+        createdByUserId: userEmail,
+        createdByName: currentUser?.name || respondent.respondentName,
+        notesAdmin: 'Data terkirim, menunggu verifikasi Admin.',
+      };
 
       if (editId) {
-        await surveyService.update(editId, {
-          respondent,
-          answers,
-          status: 'Terkirim',
-          currentStep: formConfig.sections.length,
-          submittedAt: new Date().toISOString(),
-        });
+        const numericId = parseInt(String(editId).replace(/\D/g, ''), 10);
+        if (!isNaN(numericId)) {
+          const { error } = await supabase
+            .from('surveys')
+            .update({
+              user_email: userEmail,
+              opd_name: opdName,
+              answers: formData,
+              status: 'submitted',
+            })
+            .eq('id', numericId);
+
+          if (error) throw error;
+        }
       } else {
-        await surveyService.create({
-          surveyCategory: categoryKey,
-          surveyTitle: formConfig.title,
-          opdId: selectedOpd?.id || 'opd-umum',
-          opdName: respondent.agencyName,
-          respondent,
-          answers,
-          status: 'Terkirim',
-          currentStep: formConfig.sections.length,
-          submittedAt: new Date().toISOString(),
-          createdByUserId: currentUser?.id || 'guest',
-          createdByName: currentUser?.name || respondent.respondentName,
-          notesAdmin: 'Data terkirim, menunggu verifikasi Admin.',
-        });
+        const { error } = await supabase
+          .from('surveys')
+          .insert([
+            {
+              user_email: userEmail,
+              opd_name: opdName,
+              answers: formData, // seluruh data jawaban form
+              status: 'submitted',
+            },
+          ]);
+
+        if (error) throw error;
       }
+
+      await surveyService.syncRemote();
 
       setIsSubmitting(false);
       setShowSubmitModal(false);
       toast.success('Data survey berhasil dikirim ke sistem.', 'Survey Terkirim');
       navigate('/data-survey');
-    } catch (e) {
+    } catch (e: any) {
       setIsSubmitting(false);
-      toast.error('Gagal mengirimkan survey. Silakan coba kembali.', 'Terjadi Kesalahan');
+      console.error('Gagal mengirimkan survey:', e);
+      toast.error('Gagal mengirimkan survey: ' + (e?.message || 'Silakan coba kembali.'), 'Terjadi Kesalahan');
     }
   };
 

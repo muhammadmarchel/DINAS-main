@@ -56,17 +56,27 @@ export const SurveyDataList: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<SurveySubmission | null>(null);
 
   const loadData = async () => {
-    const all = surveyService.getAll();
-    setSubmissions(all);
-    const allOpds = opdService.getAll();
-    setOpds(allOpds);
-
     try {
-      const fresh = await surveyService.syncRemote();
-      setSubmissions(fresh);
+      const { data: surveyList, error } = await supabase
+        .from('surveys')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Gagal memuat survey dari Supabase:', error.message);
+        setSubmissions([]);
+      } else if (surveyList) {
+        const formatted = surveyService.formatRemoteSurveys(surveyList);
+        setSubmissions(formatted);
+        surveyService.setAll(formatted);
+      }
     } catch (e) {
       console.warn('Sync notice:', e);
+      setSubmissions([]);
     }
+
+    const allOpds = opdService.getAll();
+    setOpds(allOpds);
   };
 
   useEffect(() => {
@@ -89,7 +99,12 @@ export const SurveyDataList: React.FC = () => {
     return submissions.filter((s) => {
       // Role scope: if not admin, only see own user or own OPD submissions
       if (!isAdmin && currentUser) {
-        const belongsToUser = s.createdByUserId === currentUser.id || s.opdId === currentUser.opdId;
+        const belongsToUser =
+          s.createdByUserId === currentUser.id ||
+          s.createdByUserId === currentUser.email ||
+          s.respondent?.email === currentUser.email ||
+          (currentUser.opdId && s.opdId === currentUser.opdId) ||
+          (currentUser.opdName && s.opdName && s.opdName.toLowerCase() === currentUser.opdName.toLowerCase());
         if (!belongsToUser) return false;
       }
 

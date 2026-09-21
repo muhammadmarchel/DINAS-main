@@ -36,18 +36,33 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const loadData = async () => {
-    const all = surveyService.getAll();
-    setSubmissions(all);
+    try {
+      const { data: surveyList, error } = await supabase
+        .from('surveys')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Gagal memuat survey dari Supabase:', error.message);
+        setSubmissions([]);
+      } else if (surveyList) {
+        const formatted = surveyService.formatRemoteSurveys(surveyList);
+        setSubmissions(formatted);
+        surveyService.setAll(formatted);
+      }
+    } catch (e) {
+      console.warn('Error fetching surveys:', e);
+      setSubmissions([]);
+    }
+
     const allOpds = opdService.getAll();
     setOpds(allOpds);
-    const allUsers = userService.getAll();
-    setUserCount(allUsers.length);
 
     try {
-      const fresh = await surveyService.syncRemote();
-      setSubmissions(fresh);
+      const freshUsers = await userService.syncRemote();
+      setUserCount(freshUsers.length);
     } catch (e) {
-      console.warn('Sync notice:', e);
+      console.warn('Sync users notice:', e);
     }
   };
 
@@ -55,19 +70,35 @@ export const AdminDashboard: React.FC = () => {
     loadData();
 
     // Realtime listener Supabase
-    const channel = supabase
+    const surveysChannel = supabase
       .channel('realtime-admin-surveys')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
         loadData();
       })
       .subscribe();
 
+    const usersChannel = supabase
+      .channel('realtime-admin-users')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        loadData();
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(surveysChannel);
+      supabase.removeChannel(usersChannel);
     };
   }, []);
 
-  const stats = surveyService.getStats();
+  const stats = {
+    total: submissions.length,
+    diverifikasi: submissions.filter((s) => s.status === 'Diverifikasi').length,
+    terkirim: submissions.filter((s) => s.status === 'Terkirim').length,
+    draft: submissions.filter((s) => s.status === 'Draft').length,
+    perluPerbaikan: submissions.filter((s) => s.status === 'Perlu Perbaikan').length,
+    sudahDiisi: submissions.filter((s) => s.status === 'Terkirim' || s.status === 'Diverifikasi').length,
+    belumDiisi: submissions.filter((s) => s.status === 'Draft').length,
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
