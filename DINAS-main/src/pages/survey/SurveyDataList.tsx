@@ -22,12 +22,17 @@ import {
   ChevronRight,
   RotateCcw,
   CheckCircle,
+  X,
+  Building2,
+  Calendar,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export const SurveyDataList: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const initialCat = searchParams.get('category') || 'all';
 
   const { currentUser, isAdmin } = useAuth();
   const toast = useToast();
@@ -38,11 +43,21 @@ export const SurveyDataList: React.FC = () => {
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOpd, setSelectedOpd] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState(initialCat);
+  const [selectedInstansi, setSelectedInstansi] = useState<string>(() => {
+    const p = searchParams.get('category');
+    if (!p || p === 'all') return 'all';
+    const up = p.toUpperCase();
+    if (up === 'DISKOMINFO') return 'DISKOMINFO';
+    if (up === 'BPKSDM' || up === 'BKPSDM') return 'BKPSDM';
+    if (up === 'BAPPEDA') return 'BAPPEDA';
+    if (up.includes('ORGANISASI')) return 'BAGIAN_ORGANISASI';
+    if (up.includes('DINAS')) return 'DINAS_TEKNIS';
+    return 'all';
+  });
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Sort states
   const [sortField, setSortField] = useState<keyof SurveySubmission>('createdAt');
@@ -94,10 +109,50 @@ export const SurveyDataList: React.FC = () => {
     };
   }, []);
 
-  // Filter logic
-  const filteredData = useMemo(() => {
+  // 5 Instansi Tabs definition
+  const INSTANSI_TABS = [
+    { key: 'all', label: 'Semua Instansi', short: 'Semua' },
+    { key: 'DISKOMINFO', label: 'DISKOMINFO', short: 'Diskominfo' },
+    { key: 'BKPSDM', label: 'BKPSDM', short: 'BKPSDM' },
+    { key: 'BAPPEDA', label: 'BAPPEDA', short: 'Bappeda' },
+    { key: 'BAGIAN_ORGANISASI', label: 'BAGIAN ORGANISASI', short: 'Bag. Organisasi' },
+    { key: 'DINAS_TEKNIS', label: 'DINAS TEKNIS', short: 'Dinas Teknis' },
+  ];
+
+  // Status Tabs definition
+  const STATUS_TABS = [
+    { key: 'all', label: 'Semua Status' },
+    { key: 'Terkirim', label: 'Terkirim', dotColor: 'bg-blue-500' },
+    { key: 'Diverifikasi', label: 'Diverifikasi', dotColor: 'bg-emerald-500' },
+    { key: 'Perlu Perbaikan', label: 'Perlu Perbaikan', dotColor: 'bg-amber-500' },
+    { key: 'Draft', label: 'Draft', dotColor: 'bg-slate-400' },
+  ];
+
+  // Helper matching instansi
+  const matchesInstansi = (s: SurveySubmission, key: string): boolean => {
+    if (key === 'all') return true;
+    const opd = (s.opdName || '').toUpperCase();
+    const cat = (s.surveyCategory || '').toUpperCase();
+
+    switch (key) {
+      case 'DISKOMINFO':
+        return cat === 'DISKOMINFO' || opd.includes('DISKOMINFO') || opd.includes('KOMUNIKASI');
+      case 'BKPSDM':
+        return cat === 'BPKSDM' || cat === 'BKPSDM' || opd.includes('BKPSDM') || opd.includes('KEPEGAWAIAN');
+      case 'BAPPEDA':
+        return cat === 'BAPPEDA' || opd.includes('BAPPEDA') || opd.includes('PERENCANAAN');
+      case 'BAGIAN_ORGANISASI':
+        return cat === 'BAGIAN_ORGANISASI_DATA' || cat.includes('ORGANISASI') || opd.includes('ORGANISASI');
+      case 'DINAS_TEKNIS':
+        return cat === 'DINAS' || opd.includes('DINAS TEKNIS') || (opd.includes('DINAS') && !opd.includes('KOMUNIKASI'));
+      default:
+        return cat === key.toUpperCase() || opd.includes(key.toUpperCase());
+    }
+  };
+
+  // Base submissions accessible to current user
+  const accessibleSubmissions = useMemo(() => {
     return submissions.filter((s) => {
-      // Role scope: if not admin, only see own user or own OPD submissions
       if (!isAdmin && currentUser) {
         const belongsToUser =
           s.createdByUserId === currentUser.id ||
@@ -107,7 +162,40 @@ export const SurveyDataList: React.FC = () => {
           (currentUser.opdName && s.opdName && s.opdName.toLowerCase() === currentUser.opdName.toLowerCase());
         if (!belongsToUser) return false;
       }
+      return true;
+    });
+  }, [submissions, isAdmin, currentUser]);
 
+  // Counts per instansi tab
+  const instansiCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: accessibleSubmissions.length };
+    INSTANSI_TABS.forEach((tab) => {
+      if (tab.key !== 'all') {
+        counts[tab.key] = accessibleSubmissions.filter((s) => matchesInstansi(s, tab.key)).length;
+      }
+    });
+    return counts;
+  }, [accessibleSubmissions]);
+
+  // Counts per status tab
+  const statusCounts = useMemo(() => {
+    const base = selectedInstansi === 'all'
+      ? accessibleSubmissions
+      : accessibleSubmissions.filter((s) => matchesInstansi(s, selectedInstansi));
+
+    const counts: Record<string, number> = {
+      all: base.length,
+      Terkirim: base.filter((s) => s.status === 'Terkirim').length,
+      Diverifikasi: base.filter((s) => s.status === 'Diverifikasi').length,
+      'Perlu Perbaikan': base.filter((s) => s.status === 'Perlu Perbaikan').length,
+      Draft: base.filter((s) => s.status === 'Draft').length,
+    };
+    return counts;
+  }, [accessibleSubmissions, selectedInstansi]);
+
+  // Filter logic
+  const filteredData = useMemo(() => {
+    return accessibleSubmissions.filter((s) => {
       // Search keyword
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -120,22 +208,19 @@ export const SurveyDataList: React.FC = () => {
         if (!matches) return false;
       }
 
-      // OPD filter
-      if (selectedOpd !== 'all' && s.opdId !== selectedOpd) return false;
+      // Instansi
+      if (!matchesInstansi(s, selectedInstansi)) return false;
 
-      // Category filter
-      if (selectedCategory !== 'all' && s.surveyCategory !== selectedCategory) return false;
-
-      // Status filter
+      // Status
       if (selectedStatus !== 'all' && s.status !== selectedStatus) return false;
 
-      // Date range filter
+      // Date range
       if (startDate && s.createdAt < startDate) return false;
       if (endDate && s.createdAt > `${endDate}T23:59:59Z`) return false;
 
       return true;
     });
-  }, [submissions, searchQuery, selectedOpd, selectedCategory, selectedStatus, startDate, endDate, isAdmin, currentUser]);
+  }, [accessibleSubmissions, searchQuery, selectedInstansi, selectedStatus, startDate, endDate]);
 
   // Sort logic
   const sortedData = useMemo(() => {
@@ -158,10 +243,16 @@ export const SurveyDataList: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
   const paginatedData = sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    selectedInstansi !== 'all' ||
+    selectedStatus !== 'all' ||
+    startDate !== '' ||
+    endDate !== '';
+
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedOpd('all');
-    setSelectedCategory('all');
+    setSelectedInstansi('all');
     setSelectedStatus('all');
     setStartDate('');
     setEndDate('');
@@ -226,26 +317,13 @@ export const SurveyDataList: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Search Card */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">
-            <Filter className="w-4 h-4 text-blue-600" />
-            <span>Filter & Pencarian Data</span>
-          </div>
-          <button
-            onClick={handleResetFilters}
-            className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset Filter
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Keyword Search */}
-          <div className="relative lg:col-span-2">
-            <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+      {/* Simplified, 1-Click Filter Experience */}
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+        {/* Search Row & Quick Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          {/* Unified Fast Search Bar with Clear (X) */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
@@ -253,106 +331,274 @@ export const SurveyDataList: React.FC = () => {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Cari nama OPD, nama responden, jenis survey, atau ID..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Cari cepat instansi, nama responden, jenis survey, atau ID..."
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/70 transition-colors"
+                title="Hapus teks pencarian"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* OPD filter (visible to Admin) */}
-          <div>
-            <select
-              value={selectedOpd}
-              onChange={(e) => {
-                setSelectedOpd(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Semua OPD / Instansi</option>
-              {opds.map((opd) => (
-                <option key={opd.id} value={opd.id}>
-                  {opd.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Category filter */}
-          <div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Semua 5 Kategori Survey</option>
-              {Object.keys(SURVEY_FORM_CONFIGS).map((key) => (
-                <option key={key} value={key}>
-                  {SURVEY_FORM_CONFIGS[key as SurveyCategoryKey].shortName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status filter */}
-          <div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => {
-                setSelectedStatus(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">Semua Status</option>
-              <option value="Diverifikasi">Diverifikasi</option>
-              <option value="Terkirim">Terkirim</option>
-              <option value="Perlu Perbaikan">Perlu Perbaikan</option>
-              <option value="Draft">Draft</option>
-            </select>
-          </div>
-
-          {/* Date from */}
-          <div>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setCurrentPage(1);
-              }}
-              title="Tanggal Awal"
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Date to */}
-          <div>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setCurrentPage(1);
-              }}
-              title="Tanggal Akhir"
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Sort field */}
-          <div>
+          <div className="flex items-center gap-2">
+            {/* Advanced (Date & Sort) Toggle */}
             <button
-              onClick={() => setSortAsc(!sortAsc)}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-colors"
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 border rounded-xl text-xs font-semibold transition-all ${
+                showAdvanced || startDate || endDate
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
             >
-              <span>Urutan: {sortAsc ? 'Terlama / A-Z' : 'Terbaru / Z-A'}</span>
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Tanggal & Urutan</span>
+              {(startDate || endDate) && (
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              )}
+              {showAdvanced ? (
+                <ChevronUp className="w-3 h-3 text-blue-600" />
+              ) : (
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              )}
             </button>
+
+            {/* Reset Button (visible when any filter is active) */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-colors"
+                title="Reset semua filter"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* 1-Click Instansi Pills */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              Pilih Instansi / OPD (5 Instansi Tubaba):
+            </span>
+            <span className="text-[10px] text-slate-400 font-normal">Klik untuk filter cepat</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {INSTANSI_TABS.map((tab) => {
+              const isSelected = selectedInstansi === tab.key;
+              const count = instansiCounts[tab.key] ?? 0;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedInstansi(tab.key);
+                    setCurrentPage(1);
+                  }}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap font-medium transition-all ${
+                    isSelected
+                      ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/25 ring-2 ring-blue-600 ring-offset-1'
+                      : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : count > 0
+                        ? 'bg-slate-200 text-slate-800'
+                        : 'bg-slate-200/60 text-slate-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 1-Click Status Pills */}
+        <div className="space-y-1.5 pt-1">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            Status Survey:
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {STATUS_TABS.map((tab) => {
+              const isSelected = selectedStatus === tab.key;
+              const count = statusCounts[tab.key] ?? 0;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatus(tab.key);
+                    setCurrentPage(1);
+                  }}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs whitespace-nowrap font-medium transition-all ${
+                    isSelected
+                      ? 'bg-slate-900 text-white font-bold shadow-sm ring-2 ring-slate-900 ring-offset-1'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/70'
+                  }`}
+                >
+                  {tab.dotColor && (
+                    <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : tab.dotColor}`} />
+                  )}
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Collapsible Advanced Panel: Tanggal & Urutan */}
+        {showAdvanced && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60 p-3.5 rounded-xl">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-blue-600" />
+                <span>Dari Tanggal</span>
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-blue-600" />
+                <span>Sampai Tanggal</span>
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                <ArrowUpDown className="w-3 h-3 text-blue-600" />
+                <span>Urutan Waktu Data</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setSortAsc(!sortAsc)}
+                className="w-full flex items-center justify-between px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-colors"
+              >
+                <span>{sortAsc ? 'Terlama (A-Z)' : 'Terbaru (Z-A)'}</span>
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            </div>
+
+            {(startDate || endDate) && (
+              <div className="sm:col-span-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-semibold inline-flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Hapus Filter Tanggal
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Active Filter Chips indicator */}
+        {hasActiveFilters && (
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-slate-400 text-[11px] font-medium mr-1">Filter aktif:</span>
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[11px] font-medium">
+                Pencarian: "{searchQuery}"
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="hover:text-blue-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {selectedInstansi !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[11px] font-medium">
+                Instansi: {INSTANSI_TABS.find((t) => t.key === selectedInstansi)?.label}
+                <button
+                  type="button"
+                  onClick={() => setSelectedInstansi('all')}
+                  className="hover:text-blue-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {selectedStatus !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg text-[11px] font-medium">
+                Status: {selectedStatus}
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatus('all')}
+                  className="hover:text-slate-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {(startDate || endDate) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-medium">
+                Periode: {startDate || 'Awal'} s/d {endDate || 'Sekarang'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="hover:text-amber-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-[11px] text-blue-600 hover:text-blue-800 font-bold ml-1"
+            >
+              Hapus Semua
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Data Table */}
