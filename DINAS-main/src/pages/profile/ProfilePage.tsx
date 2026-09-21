@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { opdService } from '../../services/opdService';
-import { OPD } from '../../types';
 import { supabase } from '../../lib/supabase';
 import {
   User,
@@ -12,11 +10,27 @@ import {
   Phone,
   Shield,
   Save,
-  CheckCircle2,
   AlertCircle,
-  Clock,
-  ArrowRight,
 } from 'lucide-react';
+
+export const DAFTAR_INSTANSI = [
+  'DISKOMINFO',
+  'BKPSDM',
+  'BAPPEDA',
+  'BAGIAN ORGANISASI SEKRETARIAT DAERAH',
+  'DINAS TEKNIS',
+];
+
+const normalizeInstansi = (val: string) => {
+  if (!val) return '';
+  const upper = val.toUpperCase().trim();
+  if (upper.includes('KOMINFO') || upper.includes('DISKOMINFO')) return 'DISKOMINFO';
+  if (upper.includes('BKPSDM') || upper.includes('BPKSDM') || upper.includes('KEPEGAWAIAN')) return 'BKPSDM';
+  if (upper.includes('BAPPEDA') || upper.includes('PERENCANAAN')) return 'BAPPEDA';
+  if (upper.includes('ORGANISASI')) return 'BAGIAN ORGANISASI SEKRETARIAT DAERAH';
+  if (upper.includes('TEKNIS') || upper === 'DINAS' || upper.includes('DINAS')) return 'DINAS TEKNIS';
+  return val;
+};
 
 export const ProfilePage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -28,23 +42,19 @@ export const ProfilePage: React.FC = () => {
     searchParams.get('onboarding') === 'true' ||
     (!isAdmin && (!currentUser?.opdName || !currentUser?.opdName.trim()));
 
-  const [opds, setOpds] = useState<OPD[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form state sesuai kebutuhan UI
+  // Form state kosong jika belum diisi (tanpa placeholder teks tiruan)
   const [form, setForm] = useState({
     name: currentUser?.name || '',
     nip: currentUser?.nip || '',
     email: currentUser?.email || '',
     phone: currentUser?.phone || '',
-    opd_name: currentUser?.opdName || '',
+    opd_name: normalizeInstansi(currentUser?.opdName || ''),
   });
 
-  // Muat daftar OPD dan sinkronkan data profil terbaru dari Supabase
+  // Sinkronkan data profil terbaru dari Supabase
   useEffect(() => {
-    const allOpds = opdService.getAll();
-    setOpds(allOpds);
-
     const loadFreshProfile = async () => {
       const targetEmail = currentUser?.email;
       if (!targetEmail) return;
@@ -64,7 +74,7 @@ export const ProfilePage: React.FC = () => {
             nip: dbUser.nip || currentUser?.nip || '',
             email: dbUser.email || currentUser?.email || '',
             phone: dbUser.phone || currentUser?.phone || '',
-            opd_name: dbUser.opd_name || currentUser?.opdName || '',
+            opd_name: normalizeInstansi(dbUser.opd_name || currentUser?.opdName || ''),
           });
         }
       } catch (err) {
@@ -93,7 +103,7 @@ export const ProfilePage: React.FC = () => {
     try {
       const userEmail = currentUser?.email || form.email;
 
-      // Simpan ke Supabase sesuai instruksi
+      // Simpan langsung ke tabel Supabase users
       const { error } = await supabase
         .from('users')
         .update({
@@ -122,7 +132,7 @@ export const ProfilePage: React.FC = () => {
       setIsSaving(false);
       toast.success('Biodata profil berhasil disimpan ke database!', 'Profil Tersimpan');
 
-      // Jika berhasil, alihkan pengguna langsung ke dashboard survey
+      // Alihkan pengguna langsung ke dashboard survey
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setIsSaving(false);
@@ -145,7 +155,7 @@ export const ProfilePage: React.FC = () => {
                 Langkah Awal: Lengkapi Biodata & Asal Instansi Anda
               </h3>
               <p className="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
-                Sebelum dapat mengakses dan mengisi formulir survey digital TUBABA, Anda wajib melengkapi data diri dan memilih <strong>Instansi Terdaftar (OPD)</strong> di bawah ini, lalu klik tombol <strong>Simpan Perubahan</strong>.
+                Sebelum dapat mengakses dan mengisi formulir survey digital TUBABA, Anda wajib melengkapi data diri dan memilih <strong>Instansi Terdaftar</strong> di bawah ini, lalu klik tombol <strong>Simpan Perubahan</strong>.
               </p>
             </div>
           </div>
@@ -202,7 +212,6 @@ export const ProfilePage: React.FC = () => {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Contoh: Rian Pratama, S.T."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 required
               />
@@ -210,7 +219,7 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* 2. Nomor Induk Pegawai (NIP) (nip) */}
+            {/* 2. Nomor Induk Pegawai (NIP) (nip) - Kosong jika belum diisi */}
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 uppercase tracking-wider">
                 Nomor Induk Pegawai (NIP)
@@ -219,7 +228,6 @@ export const ProfilePage: React.FC = () => {
                 type="text"
                 value={form.nip}
                 onChange={(e) => setForm({ ...form, nip: e.target.value })}
-                placeholder="199003152015031004"
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
             </div>
@@ -243,7 +251,7 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* 4. No. WhatsApp / Telepon (phone) */}
+            {/* 4. No. WhatsApp / Telepon (phone) - Kosong jika belum diisi */}
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 uppercase tracking-wider">
                 No. WhatsApp / Telepon
@@ -254,13 +262,12 @@ export const ProfilePage: React.FC = () => {
                   type="text"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="0812-3456-7890"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
               </div>
             </div>
 
-            {/* 5. Instansi Terdaftar (opd_name, dropdown pilihan dinas/OPD di Tubaba) */}
+            {/* 5. Instansi Terdaftar (opd_name, pilihan 5 instansi) */}
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 uppercase tracking-wider">
                 Instansi Terdaftar <span className="text-rose-500">*</span>
@@ -272,12 +279,15 @@ export const ProfilePage: React.FC = () => {
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                   required={!isAdmin}
                 >
-                  <option value="">-- Pilih Dinas / Instansi OPD di TUBABA --</option>
-                  {opds.map((o) => (
-                    <option key={o.id} value={o.name}>
-                      {o.name}
+                  <option value="">-- Pilih Instansi / OPD di TUBABA --</option>
+                  {DAFTAR_INSTANSI.map((nama) => (
+                    <option key={nama} value={nama}>
+                      {nama}
                     </option>
                   ))}
+                  {form.opd_name && !DAFTAR_INSTANSI.includes(form.opd_name) && (
+                    <option value={form.opd_name}>{form.opd_name}</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -286,7 +296,7 @@ export const ProfilePage: React.FC = () => {
           {/* 6. Aksi Tombol "Simpan Perubahan" */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
             <p className="text-[11px] text-slate-400">
-              * Pastikan pilihan instansi sesuai dengan penugasan dinas Anda.
+              * Pastikan pilihan instansi sesuai dengan unit penugasan Anda.
             </p>
             <button
               type="submit"

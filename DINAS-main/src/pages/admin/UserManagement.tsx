@@ -4,6 +4,7 @@ import { opdService } from '../../services/opdService';
 import { OPD } from '../../types';
 import { Modal } from '../../components/common/Modal';
 import { supabase } from '../../lib/supabase';
+import { DAFTAR_INSTANSI } from '../profile/ProfilePage';
 import {
   Users,
   UserPlus,
@@ -562,11 +563,14 @@ export const UserManagement: React.FC = () => {
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">-- Belum Ditentukan / Bebas --</option>
-              {opds.map((o) => (
-                <option key={o.id} value={o.name}>
-                  {o.name}
+              {DAFTAR_INSTANSI.map((nama) => (
+                <option key={nama} value={nama}>
+                  {nama}
                 </option>
               ))}
+              {opdName && !DAFTAR_INSTANSI.includes(opdName) && (
+                <option value={opdName}>{opdName}</option>
+              )}
             </select>
           </div>
 
