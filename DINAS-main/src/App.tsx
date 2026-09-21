@@ -13,7 +13,6 @@ import { SurveyFormPage } from './pages/survey/SurveyFormPage';
 import { SurveyDataList } from './pages/survey/SurveyDataList';
 import { SurveyDetail } from './pages/survey/SurveyDetail';
 import { UserManagement } from './pages/admin/UserManagement';
-import { OpdManagement } from './pages/admin/OpdManagement';
 import { ReportsPage } from './pages/reports/ReportsPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SettingsPage } from './pages/settings/SettingsPage';
@@ -97,14 +96,7 @@ export const App: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="opd"
-                  element={
-                    <ProtectedRoute requireAdmin>
-                      <OpdManagement />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="opd" element={<Navigate to="/dashboard" replace />} />
 
                 {/* Laporan & Settings & Profile */}
                 <Route path="laporan" element={<ReportsPage />} />

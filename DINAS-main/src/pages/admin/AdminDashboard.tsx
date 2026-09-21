@@ -228,8 +228,8 @@ export const AdminDashboard: React.FC = () => {
                 <BarChart2 className="w-5 h-5 text-blue-600" />
                 <h3 className="font-bold text-slate-800 text-sm">Survey Per OPD (Top 5)</h3>
               </div>
-              <Link to="/opd" className="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5">
-                Semua OPD <ArrowUpRight className="w-3.5 h-3.5" />
+              <Link to="/data-survey" className="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5">
+                Lihat Survey <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
