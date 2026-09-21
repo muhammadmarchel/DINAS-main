@@ -24,6 +24,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
+import { supabase } from '../../lib/supabase';
+
 export const AdminDashboard: React.FC = () => {
   const [submissions, setSubmissions] = useState<SurveySubmission[]>([]);
   const [opds, setOpds] = useState<OPD[]>([]);
@@ -33,24 +35,43 @@ export const AdminDashboard: React.FC = () => {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const loadData = () => {
+  const loadData = async () => {
     const all = surveyService.getAll();
     setSubmissions(all);
     const allOpds = opdService.getAll();
     setOpds(allOpds);
     const allUsers = userService.getAll();
     setUserCount(allUsers.length);
+
+    try {
+      const fresh = await surveyService.syncRemote();
+      setSubmissions(fresh);
+    } catch (e) {
+      console.warn('Sync notice:', e);
+    }
   };
 
   useEffect(() => {
     loadData();
+
+    // Realtime listener Supabase
+    const channel = supabase
+      .channel('realtime-admin-surveys')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const stats = surveyService.getStats();
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    surveyService.delete(deleteTarget.id);
+    await surveyService.delete(deleteTarget.id);
     toast.success(`Data survey ${deleteTarget.id} berhasil dihapus.`, 'Data Dihapus');
     setDeleteTarget(null);
     loadData();

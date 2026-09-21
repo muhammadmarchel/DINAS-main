@@ -174,19 +174,19 @@ export const SurveyFormPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     try {
       const selectedOpd = opds.find((o) => o.name === respondent.agencyName) || opds[0];
 
       if (editId) {
-        surveyService.update(editId, {
+        await surveyService.update(editId, {
           respondent,
           answers,
           status: 'Draft',
           currentStep,
         });
       } else {
-        surveyService.create({
+        await surveyService.create({
           surveyCategory: categoryKey,
           surveyTitle: formConfig.title,
           opdId: selectedOpd?.id || 'opd-umum',
@@ -215,7 +215,7 @@ export const SurveyFormPage: React.FC = () => {
       const selectedOpd = opds.find((o) => o.name === respondent.agencyName) || opds[0];
 
       if (editId) {
-        surveyService.update(editId, {
+        await surveyService.update(editId, {
           respondent,
           answers,
           status: 'Terkirim',
@@ -223,7 +223,7 @@ export const SurveyFormPage: React.FC = () => {
           submittedAt: new Date().toISOString(),
         });
       } else {
-        surveyService.create({
+        await surveyService.create({
           surveyCategory: categoryKey,
           surveyTitle: formConfig.title,
           opdId: selectedOpd?.id || 'opd-umum',

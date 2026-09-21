@@ -35,10 +35,18 @@ export const SurveyDetail: React.FC = () => {
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState('');
 
-  const loadSurvey = () => {
+  const loadSurvey = async () => {
     if (id) {
       const found = surveyService.getById(id);
       if (found) setSurvey(found);
+
+      try {
+        const freshList = await surveyService.syncRemote();
+        const fresh = freshList.find((s) => s.id === id);
+        if (fresh) setSurvey(fresh);
+      } catch (e) {
+        console.warn('Sync notice:', e);
+      }
     }
   };
 
@@ -48,17 +56,16 @@ export const SurveyDetail: React.FC = () => {
 
   if (!survey) {
     return (
-      <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs max-w-lg mx-auto my-12">
-        <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-slate-800">Data Survey Tidak Ditemukan</h3>
-        <p className="text-xs text-slate-500 mt-1">
-          Formulir dengan ID {id} mungkin telah dihapus atau tidak tersedia.
+      <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
+        <h3 className="font-bold text-slate-800 text-lg">Data Survey Tidak Ditemukan</h3>
+        <p className="text-xs text-slate-500 mt-1 mb-4">
+          Dokumen formulir survey dengan ID "{id}" tidak ditemukan dalam sistem.
         </p>
         <button
-          onClick={() => navigate('/data-survey')}
-          className="mt-5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition-colors"
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold"
         >
-          Kembali ke Data Survey
+          Kembali ke Daftar
         </button>
       </div>
     );
@@ -75,8 +82,8 @@ export const SurveyDetail: React.FC = () => {
     window.print();
   };
 
-  const handleVerify = () => {
-    surveyService.updateStatus(
+  const handleVerify = async () => {
+    await surveyService.updateStatus(
       survey.id,
       'Diverifikasi',
       'Data survey telah ditinjau dan dinyatakan lengkap dan valid.',
@@ -87,12 +94,12 @@ export const SurveyDetail: React.FC = () => {
     loadSurvey();
   };
 
-  const handleRequestRevision = () => {
+  const handleRequestRevision = async () => {
     if (!revisionNotes.trim()) {
       toast.warning('Harap masukkan catatan bagian mana yang perlu diperbaiki.', 'Catatan Kosong');
       return;
     }
-    surveyService.updateStatus(survey.id, 'Perlu Perbaikan', revisionNotes);
+    await surveyService.updateStatus(survey.id, 'Perlu Perbaikan', revisionNotes);
     setShowRevisionModal(false);
     toast.info(`Catatan perbaikan telah dikirim ke responden ${survey.opdName}.`, 'Revisi Dikirim');
     loadSurvey();

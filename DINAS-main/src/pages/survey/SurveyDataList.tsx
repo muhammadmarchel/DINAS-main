@@ -23,6 +23,7 @@ import {
   RotateCcw,
   CheckCircle,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export const SurveyDataList: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -35,7 +36,7 @@ export const SurveyDataList: React.FC = () => {
   const [submissions, setSubmissions] = useState<SurveySubmission[]>([]);
   const [opds, setOpds] = useState<OPD[]>([]);
 
-  // Filters
+  // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOpd, setSelectedOpd] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState(initialCat);
@@ -43,8 +44,8 @@ export const SurveyDataList: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Sorting
-  const [sortField, setSortField] = useState<'updatedAt' | 'opdName' | 'status'>('updatedAt');
+  // Sort states
+  const [sortField, setSortField] = useState<keyof SurveySubmission>('createdAt');
   const [sortAsc, setSortAsc] = useState(false);
 
   // Pagination
@@ -54,15 +55,33 @@ export const SurveyDataList: React.FC = () => {
   // Modals
   const [deleteTarget, setDeleteTarget] = useState<SurveySubmission | null>(null);
 
-  const loadData = () => {
+  const loadData = async () => {
     const all = surveyService.getAll();
     setSubmissions(all);
     const allOpds = opdService.getAll();
     setOpds(allOpds);
+
+    try {
+      const fresh = await surveyService.syncRemote();
+      setSubmissions(fresh);
+    } catch (e) {
+      console.warn('Sync notice:', e);
+    }
   };
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel('realtime-list-surveys')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Filter logic
@@ -106,8 +125,8 @@ export const SurveyDataList: React.FC = () => {
   // Sort logic
   const sortedData = useMemo(() => {
     return [...filteredData].sort((a, b) => {
-      let valA: string | number = a[sortField];
-      let valB: string | number = b[sortField];
+      let valA: string | number = (a[sortField] as any) ?? '';
+      let valB: string | number = (b[sortField] as any) ?? '';
 
       if (sortField === 'updatedAt') {
         valA = new Date(a.updatedAt).getTime();
@@ -135,9 +154,9 @@ export const SurveyDataList: React.FC = () => {
     toast.info('Filter pencarian telah direset.');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    surveyService.delete(deleteTarget.id);
+    await surveyService.delete(deleteTarget.id);
     toast.success(`Data survey ${deleteTarget.id} berhasil dihapus.`, 'Data Dihapus');
     setDeleteTarget(null);
     loadData();

@@ -32,6 +32,14 @@ export const UserDashboard: React.FC = () => {
         (s) => s.createdByUserId === currentUser.id || s.opdId === currentUser.opdId
       );
       setMySurveys(list);
+
+      // Sync dari Supabase cloud
+      surveyService.syncRemote().then((all) => {
+        const fresh = all.filter(
+          (s) => s.createdByUserId === currentUser.id || s.opdId === currentUser.opdId
+        );
+        setMySurveys(fresh);
+      });
     }
   }, [currentUser]);
 
