@@ -142,11 +142,11 @@ export const AdminDashboard: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             Portal Administrator Resmi Pemkab TUBABA
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Dashboard Admin
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-tight">
+            SURVEY PENYUSUNAN ARSITEKTUR PEMERINTAHAN DIGITAL (PEMDI) 2026
           </h2>
-          <p className="text-blue-100 text-sm sm:text-base mt-1.5 leading-relaxed font-normal">
-            Selamat datang di Sistem Form Survey Digital TUBABA. Pantau pemenuhan survey, data OPD, verifikasi berkas, dan analisa laporan statistik terpadu.
+          <p className="text-blue-100 text-xs sm:text-sm mt-2 leading-relaxed font-normal">
+            Selamat datang di Portal Survei Arsitektur Pemerintahan Digital (PEMDI) TUBABA 2026. Pantau pemenuhan survey, data OPD, verifikasi berkas, dan analisa laporan statistik terpadu.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-5">

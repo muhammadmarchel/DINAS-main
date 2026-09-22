@@ -103,14 +103,16 @@ export const UserDashboard: React.FC = () => {
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-700/60 border border-blue-500/40 text-blue-200 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Portal Pengisian Survey Mandiri OPD
+            Pemerintah Kabupaten Tulang Bawang Barat
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Selamat Datang, {currentUser?.name}
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-tight">
+            SURVEY PENYUSUNAN ARSITEKTUR PEMERINTAHAN DIGITAL (PEMDI) 2026
           </h2>
-          <div className="flex items-center gap-2 text-blue-200 text-xs sm:text-sm mt-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-blue-200 text-xs sm:text-sm mt-2">
             <Building className="w-4 h-4 text-blue-300 shrink-0" />
-            <span className="font-medium">{currentUser?.opdName || '(Belum Memilih Instansi)'}</span>
+            <span className="font-semibold text-white">{currentUser?.opdName || '(Belum Memilih Instansi)'}</span>
+            <span className="text-blue-300">&bull;</span>
+            <span>Selamat Datang, <strong>{currentUser?.name || 'Pengguna'}</strong></span>
           </div>
           <p className="text-blue-100/80 text-xs sm:text-sm mt-3 leading-relaxed">
             Silakan lengkapi formulir survey tahunan Kabupaten Tulang Bawang Barat sesuai dengan kewenangan instansi Anda. Pastikan data diisi secara akurat sebelum batas waktu evaluasi.

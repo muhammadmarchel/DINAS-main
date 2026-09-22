@@ -93,8 +93,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
         <div className="flex items-center gap-2.5 min-w-0">
           <img src="/logo-tubaba.svg" alt="TUBABA" className="w-7 h-8 object-contain hidden sm:block shrink-0" />
           <div className="flex flex-col min-w-0">
-            <h1 className="text-xs sm:text-base font-bold text-slate-800 tracking-tight leading-tight truncate max-w-[170px] xs:max-w-[220px] sm:max-w-none">
-              Sistem Form Survey Digital TUBABA
+            <h1 className="text-xs sm:text-sm md:text-base font-extrabold text-slate-800 tracking-tight leading-tight truncate max-w-[170px] xs:max-w-[220px] sm:max-w-none">
+              SURVEY ARSITEKTUR PEMERINTAHAN DIGITAL (PEMDI) 2026
             </h1>
             <p className="text-[11px] text-slate-500 hidden sm:block">
               Kabupaten Tulang Bawang Barat, Lampung

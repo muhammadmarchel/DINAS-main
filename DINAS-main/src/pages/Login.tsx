@@ -234,8 +234,8 @@ export const Login: React.FC = () => {
               <LogoTubaba size="lg" showText={false} />
             </div>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Sistem Form Survey Digital
+          <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug">
+            SURVEY PENYUSUNAN ARSITEKTUR PEMERINTAHAN DIGITAL (PEMDI) 2026
           </h1>
           <p className="text-xs font-semibold text-blue-800 mt-1 uppercase tracking-wider">
             Kabupaten Tulang Bawang Barat
