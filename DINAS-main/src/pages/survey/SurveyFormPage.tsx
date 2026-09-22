@@ -298,18 +298,39 @@ export const SurveyFormPage: React.FC = () => {
       // Sinkronkan data identitas pengisi survei ke tabel users Supabase agar langsung masuk ke Manajemen Pengguna
       if (userEmail) {
         try {
-          await supabase.from('users').upsert(
-            {
-              email: userEmail.toLowerCase().trim(),
-              name: respondent.respondentName || currentUser?.name || null,
-              nip: respondent.nip || currentUser?.nip || null,
-              phone: respondent.phone || currentUser?.phone || null,
-              opd_name: opdName || null,
-              status: 'active',
-              role: currentUser?.role || 'user',
-            },
-            { onConflict: 'email' }
-          );
+          const cleanEmail = userEmail.toLowerCase().trim();
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .ilike('email', cleanEmail)
+            .order('id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const respondentPayload = {
+            name: respondent.respondentName || currentUser?.name || null,
+            nip: respondent.nip || currentUser?.nip || null,
+            phone: respondent.phone || currentUser?.phone || null,
+            opd_name: opdName || null,
+            status: 'active',
+          };
+
+          if (existingUser?.id) {
+            await supabase
+              .from('users')
+              .update(respondentPayload)
+              .eq('id', existingUser.id);
+          } else {
+            await supabase
+              .from('users')
+              .insert([
+                {
+                  ...respondentPayload,
+                  email: cleanEmail,
+                  role: currentUser?.role || 'user',
+                },
+              ]);
+          }
         } catch (uErr) {
           console.warn('Sync respondent to users notice:', uErr);
         }

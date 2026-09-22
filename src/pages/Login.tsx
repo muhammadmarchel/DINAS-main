@@ -86,16 +86,29 @@ export const Login: React.FC = () => {
           };
 
           // Catat aktif di Supabase
-          await supabase.from('users').upsert(
-            {
-              email: email,
-              name: appUser.name,
-              role: appUser.role,
-              status: 'active',
-              opd_name: appUser.opdName || null,
-            },
-            { onConflict: 'email' }
-          );
+          if (existingUser?.id) {
+            await supabase
+              .from('users')
+              .update({
+                name: appUser.name,
+                role: appUser.role,
+                status: 'active',
+                opd_name: appUser.opdName || null,
+              })
+              .eq('id', existingUser.id);
+          } else {
+            await supabase
+              .from('users')
+              .insert([
+                {
+                  email: email,
+                  name: appUser.name,
+                  role: appUser.role,
+                  status: 'active',
+                  opd_name: appUser.opdName || null,
+                },
+              ]);
+          }
 
           setSessionUser(appUser);
           toast.success(`Selamat datang, ${appUser.name}!`, 'Login Berhasil');

@@ -108,23 +108,40 @@ export const ProfilePage: React.FC = () => {
     try {
       const cleanEmail = (currentUser?.email || form.email || '').toLowerCase().trim();
 
-      // Simpan langsung ke tabel Supabase users dengan upsert agar data baru terjamin masuk
-      const { error } = await supabase
+      // Cek apakah user dengan email tersebut sudah ada di tabel users
+      const { data: existingUser } = await supabase
         .from('users')
-        .upsert({
-          email: cleanEmail,
-          name: form.name.trim(),
-          nip: form.nip.trim(),
-          phone: form.phone.trim(),
-          opd_name: form.opd_name.trim(),
-          status: 'active',
-          role: currentUser?.role || 'user',
-        }, { onConflict: 'email' });
+        .select('id')
+        .ilike('email', cleanEmail)
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        toast.error('Gagal menyimpan profil: ' + error.message, 'Database Error');
-        setIsSaving(false);
-        return;
+      const userPayload = {
+        name: form.name.trim(),
+        nip: form.nip.trim() || null,
+        phone: form.phone.trim() || null,
+        opd_name: form.opd_name.trim(),
+        status: 'active',
+      };
+
+      if (existingUser?.id) {
+        const { error: updateError } = await supabase
+          .from('users')
+          .update(userPayload)
+          .eq('id', existingUser.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              ...userPayload,
+              email: cleanEmail,
+              role: currentUser?.role || 'user',
+            },
+          ]);
+        if (insertError) throw insertError;
       }
 
       // Perbarui sesi lokal aplikasi

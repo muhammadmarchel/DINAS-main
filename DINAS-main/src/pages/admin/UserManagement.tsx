@@ -178,17 +178,37 @@ export const UserManagement: React.FC = () => {
 
       toast.success(`Data pengguna ${email} berhasil diperbarui.`, 'Pengguna Diperbarui');
     } else {
-      // Upsert / insert user baru di Supabase
-      const { error } = await supabase
+      // Cek apakah email pengguna sudah ada sebelumnya di Supabase
+      const { data: existingUser } = await supabase
         .from('users')
-        .upsert(payload, { onConflict: 'email' });
+        .select('id')
+        .ilike('email', email.trim())
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        toast.error('Gagal menambahkan pengguna: ' + error.message, 'Error');
-        return;
+      if (existingUser?.id) {
+        const { error } = await supabase
+          .from('users')
+          .update(payload)
+          .eq('id', existingUser.id);
+
+        if (error) {
+          toast.error('Gagal memperbarui pengguna: ' + error.message, 'Error');
+          return;
+        }
+        toast.success(`Data pengguna ${email} berhasil diperbarui.`, 'Pengguna Diperbarui');
+      } else {
+        const { error } = await supabase
+          .from('users')
+          .insert([payload]);
+
+        if (error) {
+          toast.error('Gagal menambahkan pengguna: ' + error.message, 'Error');
+          return;
+        }
+        toast.success(`Pengguna baru ${email} berhasil ditambahkan.`, 'Pengguna Ditambahkan');
       }
-
-      toast.success(`Pengguna baru ${email} berhasil ditambahkan.`, 'Pengguna Ditambahkan');
     }
 
     setIsFormOpen(false);
