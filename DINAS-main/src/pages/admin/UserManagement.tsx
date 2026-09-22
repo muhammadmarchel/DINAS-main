@@ -36,6 +36,15 @@ export interface DbUser {
   created_at?: string;
 }
 
+export const formatDisplayEmail = (email?: string | null, nip?: string | null) => {
+  if (!email) return nip ? `${nip}@tubaba.go.id` : '-';
+  if (email.includes('#')) {
+    const parts = email.split('#');
+    return `${nip || parts[0]}@tubaba.go.id`;
+  }
+  return email;
+};
+
 export const UserManagement: React.FC = () => {
   // State murni dari Supabase, tanpa data tiruan/dummy/mock
   const [users, setUsers] = useState<DbUser[]>([]);
@@ -355,7 +364,7 @@ export const UserManagement: React.FC = () => {
                       {u.name || u.email.split('@')[0]}
                     </h4>
                     <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-slate-400" /> {u.email}
+                      <Mail className="w-3 h-3 text-slate-400" /> {formatDisplayEmail(u.email, u.nip)}
                     </p>
                   </div>
                   <span
@@ -490,7 +499,7 @@ export const UserManagement: React.FC = () => {
                           </div>
                           <div className="text-[11px] text-slate-500 truncate flex items-center gap-1">
                             <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{u.email}</span>
+                            <span>{formatDisplayEmail(u.email, u.nip)}</span>
                           </div>
                         </div>
                       </div>

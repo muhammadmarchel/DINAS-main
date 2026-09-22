@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   User,
   Building,
-  Mail,
+  Lock,
   Phone,
   Shield,
   Save,
@@ -44,38 +44,49 @@ export const ProfilePage: React.FC = () => {
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form state kosong jika belum diisi (tanpa placeholder teks tiruan)
+  // Form state bersih (tanpa email, dengan opsi kata sandi untuk login kembali)
   const [form, setForm] = useState({
     name: currentUser?.name || '',
     nip: currentUser?.nip || '',
-    email: currentUser?.email || '',
     phone: currentUser?.phone || '',
     opd_name: normalizeInstansi(currentUser?.opdName || ''),
+    password: currentUser?.password || '',
   });
 
   // Sinkronkan data profil terbaru dari Supabase
   useEffect(() => {
     const loadFreshProfile = async () => {
-      const targetEmail = currentUser?.email;
-      if (!targetEmail) return;
-
       try {
-        const { data: dbUser } = await supabase
-          .from('users')
-          .select('*')
-          .ilike('email', targetEmail)
+        let query = supabase.from('users').select('*');
+        if (currentUser?.nip) {
+          query = query.eq('nip', currentUser.nip);
+        } else if (currentUser?.email) {
+          query = query.ilike('email', currentUser.email);
+        } else if (currentUser?.name) {
+          query = query.ilike('name', currentUser.name);
+        } else {
+          return;
+        }
+
+        const { data: dbUser } = await query
           .order('id', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (dbUser) {
-          setForm({
-            name: dbUser.name || currentUser?.name || '',
-            nip: dbUser.nip || currentUser?.nip || '',
-            email: dbUser.email || currentUser?.email || '',
-            phone: dbUser.phone || currentUser?.phone || '',
-            opd_name: normalizeInstansi(dbUser.opd_name || currentUser?.opdName || ''),
-          });
+          let extractedPassword = '';
+          if (dbUser.email && dbUser.email.includes('#')) {
+            extractedPassword = dbUser.email.split('#')[1]?.split('@')[0] || '';
+          }
+
+          setForm((prev) => ({
+            ...prev,
+            name: dbUser.name || prev.name,
+            nip: dbUser.nip || prev.nip,
+            phone: dbUser.phone || prev.phone,
+            opd_name: normalizeInstansi(dbUser.opd_name || prev.opd_name),
+            password: extractedPassword || prev.password,
+          }));
         }
       } catch (err) {
         console.warn('Gagal memuat profil Supabase:', err);
@@ -98,30 +109,46 @@ export const ProfilePage: React.FC = () => {
       return;
     }
 
-    if (!form.email.trim()) {
-      toast.warning('Email wajib diisi.', 'Validasi Form');
-      return;
-    }
-
     setIsSaving(true);
 
     try {
-      const cleanEmail = (currentUser?.email || form.email || '').toLowerCase().trim();
+      const cleanNip = form.nip.trim();
+      const cleanName = form.name.trim();
+      const cleanPassword = form.password.trim() || 'password123';
 
-      // Cek apakah user dengan email tersebut sudah ada di tabel users
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .ilike('email', cleanEmail)
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Cari apakah pengguna sudah ada di tabel users Supabase berdasarkan NIP atau ID
+      let existingUser = null;
+      if (cleanNip) {
+        const { data } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('nip', cleanNip)
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingUser = data;
+      }
+
+      if (!existingUser && currentUser?.id && !isNaN(Number(currentUser.id))) {
+        const { data } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('id', Number(currentUser.id))
+          .maybeSingle();
+        existingUser = data;
+      }
+
+      // Format email internal untuk menyimpan password akun OPD di Supabase
+      const encodedEmail = cleanNip
+        ? `${cleanNip}#${cleanPassword}@tubaba.go.id`
+        : (currentUser?.email || `${cleanName.toLowerCase().replace(/\s+/g, '_')}#${cleanPassword}@tubaba.go.id`);
 
       const userPayload = {
-        name: form.name.trim(),
-        nip: form.nip.trim() || null,
+        name: cleanName,
+        nip: cleanNip || null,
         phone: form.phone.trim() || null,
         opd_name: form.opd_name.trim(),
+        email: encodedEmail,
         status: 'active',
       };
 
@@ -137,7 +164,6 @@ export const ProfilePage: React.FC = () => {
           .insert([
             {
               ...userPayload,
-              email: cleanEmail,
               role: currentUser?.role || 'user',
             },
           ]);
@@ -146,22 +172,24 @@ export const ProfilePage: React.FC = () => {
 
       // Perbarui sesi lokal aplikasi
       updateProfile({
-        name: form.name.trim(),
-        nip: form.nip.trim(),
+        name: cleanName,
+        nip: cleanNip,
         phone: form.phone.trim(),
         opdName: form.opd_name.trim(),
         opdId: form.opd_name ? form.opd_name.toLowerCase().replace(/\s+/g, '-') : '',
+        email: cleanNip ? `${cleanNip}@tubaba.go.id` : (currentUser?.email || ''),
+        password: cleanPassword,
       });
 
       setIsSaving(false);
-      toast.success('Biodata profil berhasil disimpan ke database!', 'Profil Tersimpan');
+      toast.success('Biodata profil berhasil disimpan! Gunakan NIP dan kata sandi untuk login kembali nanti.', 'Profil Tersimpan');
 
       // Alihkan pengguna langsung ke dashboard survey
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setIsSaving(false);
       console.error('Error saat simpan profil:', err);
-      toast.error('Terjadi kesalahan saat menyimpan profil.', 'Error');
+      toast.error('Terjadi kesalahan saat menyimpan profil: ' + (err?.message || err), 'Error');
     }
   };
 
@@ -258,28 +286,24 @@ export const ProfilePage: React.FC = () => {
               />
             </div>
 
-            {/* 3. Email Resmi */}
+            {/* 3. Kata Sandi Akun untuk Login Kembali */}
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 uppercase tracking-wider">
-                Email Resmi <span className="text-rose-500">*</span>
+                Kata Sandi Akun (Untuk Login Kembali)
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                 <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  readOnly={Boolean(currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5)}
-                  disabled={Boolean(currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5)}
-                  placeholder="nama@tubaba.go.id atau email Anda..."
-                  className={`w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5
-                      ? 'bg-slate-100 text-slate-500 cursor-not-allowed'
-                      : 'bg-slate-50 text-slate-900 focus:bg-white'
-                  }`}
-                  required
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Buat kata sandi untuk login kembali nanti..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 />
               </div>
+              <p className="text-[11px] text-slate-400 font-normal">
+                * Gunakan NIP dan kata sandi ini untuk login kembali tanpa perlu mengisi formulir profil lagi.
+              </p>
             </div>
           </div>
 

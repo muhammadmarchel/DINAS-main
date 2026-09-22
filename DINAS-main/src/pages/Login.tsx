@@ -167,11 +167,11 @@ export const Login: React.FC = () => {
     navigate('/profile?onboarding=true', { replace: true });
   };
 
-  // Login dengan Username/Email & Password
+  // Login dengan NIP / Nama Pengguna & Kata Sandi
   const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameOrEmail.trim()) {
-      toast.warning('Silakan masukkan nama pengguna atau email', 'Perhatian');
+      toast.warning('Silakan masukkan NIP atau Nama Pengguna Anda', 'Perhatian');
       return;
     }
 
@@ -185,14 +185,14 @@ export const Login: React.FC = () => {
     }
 
     setIsLoading(true);
-    setLoadingText('Memproses login...');
+    setLoadingText('Memeriksa akun...');
     try {
-      const res = await login(usernameOrEmail, password || 'password123');
+      const res = await login(usernameOrEmail, password);
       if (res.success) {
-        toast.success('Selamat datang kembali!', 'Login Berhasil');
+        toast.success('Selamat datang kembali di Sistem Survei TUBABA!', 'Login Berhasil');
         navigate('/dashboard', { replace: true });
       } else {
-        toast.error(res.message || 'Nama pengguna atau kata sandi tidak cocok', 'Login Gagal');
+        toast.error(res.message || 'NIP atau kata sandi tidak cocok', 'Login Gagal');
       }
     } catch (err: any) {
       toast.error('Terjadi kendala saat login: ' + (err?.message || err), 'Error');
@@ -247,30 +247,86 @@ export const Login: React.FC = () => {
 
         {/* Body */}
         <div className="p-6 sm:p-8 space-y-4">
-          {/* Tombol Utama Responden OPD: Praktis & Langsung Masuk */}
-          <button
-            type="button"
-            onClick={handleQuickUser}
-            className="w-full py-3.5 px-5 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white rounded-2xl font-bold text-sm flex items-center justify-between shadow-lg shadow-blue-500/25 transition-all cursor-pointer group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <UserIcon className="w-5 h-5 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-white text-sm">Masuk sebagai Pengguna OPD</div>
-                <div className="text-[11px] text-blue-100 font-normal">Isi dan kelola formulir survei</div>
+          {/* Form Login Utama (NIP / Nama Pengguna & Kata Sandi) */}
+          <form onSubmit={handleCredentialLogin} className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                NIP / Nama Pengguna
+              </label>
+              <div className="relative">
+                <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={usernameOrEmail}
+                  onChange={(e) => setUsernameOrEmail(e.target.value)}
+                  placeholder="Masukkan NIP atau nama pengguna..."
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                />
               </div>
             </div>
-            <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-0.5 transition-transform shrink-0" />
-          </button>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Kata Sandi
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Masukkan kata sandi..."
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 px-4 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white rounded-xl font-bold text-xs shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isLoading && !loadingText.includes('Google') ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{loadingText || 'Memeriksa kredensial...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk ke Sistem</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Opsi Daftar Profil Baru untuk Pengguna OPD Pertama Kali */}
+          <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-100 flex items-center justify-between gap-2">
+            <div className="text-left">
+              <p className="text-xs font-bold text-blue-950">Belum pernah isi profil OPD?</p>
+              <p className="text-[11px] text-blue-700">Lengkapi biodata instansi pertama kali</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleQuickUser}
+              className="py-1.5 px-3 bg-white hover:bg-blue-600 hover:text-white text-blue-700 border border-blue-200 rounded-xl font-bold text-xs shadow-2xs transition-all cursor-pointer shrink-0"
+            >
+              Daftar Profil Baru
+            </button>
+          </div>
+
+          <div className="relative flex py-1 items-center">
+            <div className="grow border-t border-slate-200"></div>
+            <span className="shrink mx-3 text-[11px] text-slate-400 font-medium">atau masuk via</span>
+            <div className="grow border-t border-slate-200"></div>
+          </div>
 
           {/* Tombol Google OAuth */}
           <button
             type="button"
             disabled={isLoading}
             onClick={handleGoogleLogin}
-            className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-2xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
           >
             {isLoading && loadingText.includes('Google') ? (
               <>
@@ -302,65 +358,8 @@ export const Login: React.FC = () => {
             )}
           </button>
 
-          {/* Opsi Toggle Form Akun / Password Biasa */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setShowCredentialForm(!showCredentialForm)}
-              className="w-full flex items-center justify-between py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
-            >
-              <span>Atau gunakan Nama Pengguna / Sandi</span>
-              {showCredentialForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {showCredentialForm && (
-              <form onSubmit={handleCredentialLogin} className="space-y-3 pt-2 animate-in fade-in duration-150">
-                <div>
-                  <div className="relative">
-                    <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={usernameOrEmail}
-                      onChange={(e) => setUsernameOrEmail(e.target.value)}
-                      placeholder="Nama pengguna / email..."
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Kata sandi..."
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  {isLoading && !loadingText.includes('Google') ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{loadingText || 'Memproses...'}</span>
-                    </>
-                  ) : (
-                    <span>Masuk Akun</span>
-                  )}
-                </button>
-              </form>
-            )}
-          </div>
-
           {/* Area Khusus Administrator dengan PIN Aman */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-center">
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-center">
             <button
               type="button"
               onClick={() => {
