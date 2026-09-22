@@ -11,14 +11,23 @@ import {
   Lock,
   ArrowRight,
   Loader2,
-  Sparkles,
+  KeyRound,
+  X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showCredentialForm, setShowCredentialForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
+
+  // State untuk Modal PIN Administrator
+  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [pinError, setPinError] = useState('');
 
   const { currentUser, login, loginAsRole, setSessionUser } = useAuth();
   const toast = useToast();
@@ -35,7 +44,7 @@ export const Login: React.FC = () => {
     }
   }, [currentUser, navigate]);
 
-  // Listener Supabase Auth untuk login via Google (langsung aktif, tanpa blokir pending)
+  // Listener Supabase Auth untuk login via Google
   useEffect(() => {
     const {
       data: { subscription },
@@ -48,7 +57,6 @@ export const Login: React.FC = () => {
         setLoadingText('Memverifikasi akun Google...');
 
         try {
-          // Cek apakah ada data di tabel users Supabase
           let { data: existingUser } = await supabase
             .from('users')
             .select('*')
@@ -77,7 +85,7 @@ export const Login: React.FC = () => {
             createdAt: existingUser?.created_at || new Date().toISOString(),
           };
 
-          // Pastikan akun tercatat aktif di Supabase
+          // Catat aktif di Supabase
           await supabase.from('users').upsert(
             {
               email: email,
@@ -99,7 +107,6 @@ export const Login: React.FC = () => {
           }
         } catch (err: any) {
           console.warn('Google login sync error:', err);
-          // Fallback lokal jika ada gangguan koneksi Supabase
           const fallbackUser: User = {
             id: String(Date.now()),
             name: session.user.user_metadata?.full_name || email.split('@')[0],
@@ -124,11 +131,43 @@ export const Login: React.FC = () => {
     };
   }, [navigate, setSessionUser, toast]);
 
-  // Login dengan Username / Email & Password
+  // Verifikasi PIN Administrator (Opsi 2: PIN 220926)
+  const handleVerifyAdminPin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (adminPin.trim() === '220926') {
+      setIsAdminPinModalOpen(false);
+      setPinError('');
+      setAdminPin('');
+      loginAsRole('admin');
+      toast.success('Akses Administrator berhasil dibuka.', 'Login Admin Sukses');
+      navigate('/dashboard', { replace: true });
+    } else {
+      setPinError('PIN Keamanan salah. Harap periksa kembali PIN Anda.');
+      toast.error('PIN Administrator salah!', 'Akses Ditolak');
+    }
+  };
+
+  // Login Cepat sebagai User / Responden OPD (Praktis tanpa ribet)
+  const handleQuickUser = () => {
+    loginAsRole('user');
+    toast.success('Selamat datang, Responden OPD!', 'Login Pengguna');
+    navigate('/dashboard', { replace: true });
+  };
+
+  // Login dengan Username/Email & Password
   const handleCredentialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameOrEmail.trim()) {
       toast.warning('Silakan masukkan nama pengguna atau email', 'Perhatian');
+      return;
+    }
+
+    // Dukungan langsung jika admin login via form dengan PIN 220926
+    const cleanUser = usernameOrEmail.trim().toLowerCase();
+    if ((cleanUser === 'admin' || cleanUser.includes('admin')) && (password === '220926' || password === 'password123')) {
+      loginAsRole('admin');
+      toast.success('Berhasil masuk sebagai Administrator', 'Login Admin');
+      navigate('/dashboard', { replace: true });
       return;
     }
 
@@ -147,20 +186,6 @@ export const Login: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Login Cepat sebagai Administrator
-  const handleQuickAdmin = () => {
-    loginAsRole('admin');
-    toast.success('Berhasil masuk sebagai Administrator', 'Login Admin');
-    navigate('/dashboard', { replace: true });
-  };
-
-  // Login Cepat sebagai User / Responden OPD
-  const handleQuickUser = () => {
-    loginAsRole('user');
-    toast.success('Berhasil masuk sebagai Pengguna OPD', 'Login Pengguna');
-    navigate('/dashboard', { replace: true });
   };
 
   // Login via Google OAuth
@@ -183,7 +208,7 @@ export const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden">
-      {/* Background glow */}
+      {/* Background glow lights */}
       <div className="absolute top-0 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -208,107 +233,31 @@ export const Login: React.FC = () => {
         </div>
 
         {/* Body */}
-        <div className="p-6 sm:p-8 space-y-5">
-          {/* Akses Cepat 1-Klik */}
-          <div>
-            <div className="flex items-center gap-2 mb-2.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Akses Cepat Langsung Masuk</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleQuickAdmin}
-                className="p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-2xl flex flex-col items-center justify-center gap-1.5 text-blue-900 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-xs"
-              >
-                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                  <Shield className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-bold">Administrator</span>
-                <span className="text-[10px] text-blue-700/80">Kelola Semua Data</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleQuickUser}
-                className="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-2xl flex flex-col items-center justify-center gap-1.5 text-emerald-900 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-xs"
-              >
-                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                  <UserIcon className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-bold">Pengguna OPD</span>
-                <span className="text-[10px] text-emerald-700/80">Pengisi Kuesioner</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Pemisah */}
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 w-full" />
-            <span className="bg-white px-3 text-[11px] text-slate-400 font-medium shrink-0 uppercase tracking-wider">
-              atau masuk dengan akun
-            </span>
-          </div>
-
-          {/* Form Login Kredensial */}
-          <form onSubmit={handleCredentialLogin} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Nama Pengguna / Email
-              </label>
-              <div className="relative">
-                <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={usernameOrEmail}
-                  onChange={(e) => setUsernameOrEmail(e.target.value)}
-                  placeholder="admin atau email Anda..."
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+        <div className="p-6 sm:p-8 space-y-4">
+          {/* Tombol Utama Responden OPD: Praktis & Langsung Masuk */}
+          <button
+            type="button"
+            onClick={handleQuickUser}
+            className="w-full py-3.5 px-5 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white rounded-2xl font-bold text-sm flex items-center justify-between shadow-lg shadow-blue-500/25 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <UserIcon className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-white text-sm">Masuk sebagai Pengguna OPD</div>
+                <div className="text-[11px] text-blue-100 font-normal">Isi dan kelola formulir survei</div>
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Kata Sandi
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="password123"
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
-            >
-              {isLoading && !loadingText.includes('Google') ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{loadingText || 'Memproses...'}</span>
-                </>
-              ) : (
-                <>
-                  <span>Masuk ke Sistem</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+            <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-0.5 transition-transform shrink-0" />
+          </button>
 
           {/* Tombol Google OAuth */}
           <button
             type="button"
             disabled={isLoading}
             onClick={handleGoogleLogin}
-            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-2xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
           >
             {isLoading && loadingText.includes('Google') ? (
               <>
@@ -339,6 +288,79 @@ export const Login: React.FC = () => {
               </>
             )}
           </button>
+
+          {/* Opsi Toggle Form Akun / Password Biasa */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setShowCredentialForm(!showCredentialForm)}
+              className="w-full flex items-center justify-between py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <span>Atau gunakan Nama Pengguna / Sandi</span>
+              {showCredentialForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showCredentialForm && (
+              <form onSubmit={handleCredentialLogin} className="space-y-3 pt-2 animate-in fade-in duration-150">
+                <div>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={usernameOrEmail}
+                      onChange={(e) => setUsernameOrEmail(e.target.value)}
+                      placeholder="Nama pengguna / email..."
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Kata sandi..."
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isLoading && !loadingText.includes('Google') ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{loadingText || 'Memproses...'}</span>
+                    </>
+                  ) : (
+                    <span>Masuk Akun</span>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Area Khusus Administrator dengan PIN Aman */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setAdminPin('');
+                setPinError('');
+                setIsAdminPinModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 transition-all cursor-pointer shadow-2xs"
+            >
+              <Shield className="w-4 h-4 text-blue-600" />
+              <span>Akses Petugas Administrator (PIN)</span>
+            </button>
+          </div>
         </div>
 
         {/* Footer info */}
@@ -348,6 +370,78 @@ export const Login: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Modal Masukkan PIN Administrator */}
+      {isAdminPinModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 relative">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Akses Administrator</h3>
+                  <p className="text-[11px] text-slate-500">Pemerintah Kabupaten Tulang Bawang Barat</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdminPinModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleVerifyAdminPin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 text-center">
+                  Masukkan PIN Keamanan Admin (6 Digit)
+                </label>
+                <div className="relative max-w-xs mx-auto">
+                  <KeyRound className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="password"
+                    maxLength={6}
+                    autoFocus
+                    value={adminPin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setAdminPin(val);
+                      setPinError('');
+                    }}
+                    placeholder="••••••"
+                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-center text-2xl font-mono tracking-widest text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                  />
+                </div>
+                {pinError && (
+                  <p className="text-xs text-rose-600 font-medium text-center mt-2 animate-in fade-in">
+                    {pinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsAdminPinModalOpen(false)}
+                  className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminPin.length !== 6}
+                  className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+                >
+                  Masuk Admin
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
