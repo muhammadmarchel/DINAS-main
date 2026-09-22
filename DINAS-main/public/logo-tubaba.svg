@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" fill="none">
+  <!-- Perisai Segi Lima Luar -->
+  <path d="M100 10 L185 45 L170 190 L100 230 L30 190 L15 45 Z" fill="#1E3A8A" stroke="#F59E0B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Perisai Segi Lima Dalam -->
+  <path d="M100 18 L175 49 L162 182 L100 220 L38 182 L25 49 Z" fill="#0284C7" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
+  
+  <!-- Latar Belakang Bagian Bawah Merah Putih -->
+  <path d="M38 135 Q100 160 162 135 L162 182 L100 220 L38 182 Z" fill="#DC2626"/>
+  
+  <!-- Mahkota Siger Lampung (Kuning Emas Khas Lampung) -->
+  <path d="M50 115 L60 95 L72 110 L85 85 L100 70 L115 85 L128 110 L140 95 L150 115 Q100 128 50 115 Z" fill="#FBBF24" stroke="#92400E" stroke-width="2"/>
+  <circle cx="100" cy="85" r="4" fill="#DC2626"/>
+  <circle cx="85" cy="98" r="3.5" fill="#DC2626"/>
+  <circle cx="115" cy="98" r="3.5" fill="#DC2626"/>
+  <circle cx="70" cy="108" r="3" fill="#DC2626"/>
+  <circle cx="130" cy="108" r="3" fill="#DC2626"/>
+
+  <!-- Padi (Kiri) dan Kapas (Kanan) -->
+  <path d="M45 155 Q40 120 62 90" stroke="#FBBF24" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <circle cx="48" cy="140" r="3.5" fill="#FBBF24"/>
+  <circle cx="45" cy="125" r="3.5" fill="#FBBF24"/>
+  <circle cx="47" cy="110" r="3.5" fill="#FBBF24"/>
+  <circle cx="55" cy="98" r="3.5" fill="#FBBF24"/>
+
+  <path d="M155 155 Q160 120 138 90" stroke="#10B981" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <circle cx="152" cy="140" r="4" fill="#FFFFFF" stroke="#059669" stroke-width="1.5"/>
+  <circle cx="155" cy="125" r="4" fill="#FFFFFF" stroke="#059669" stroke-width="1.5"/>
+  <circle cx="153" cy="110" r="4" fill="#FFFFFF" stroke="#059669" stroke-width="1.5"/>
+  <circle cx="145" cy="98" r="4" fill="#FFFFFF" stroke="#059669" stroke-width="1.5"/>
+
+  <!-- Payan / Keris Pusaka Lampung -->
+  <path d="M100 40 L104 65 L96 65 Z" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <rect x="98.5" y="65" width="3" height="75" fill="#F1F5F9" stroke="#334155" stroke-width="1"/>
+
+  <!-- Pita Semboyan RAGEM SAI MANGI WAWAI -->
+  <path d="M35 185 Q100 172 165 185 L160 200 Q100 188 40 200 Z" fill="#F8FAFC" stroke="#0F172A" stroke-width="1.5"/>
+  <text x="100" y="196" font-family="Arial, sans-serif" font-size="7.5" font-weight="bold" fill="#0F172A" text-anchor="middle" letter-spacing="0.5">RAGEM SAI MANGI WAWAI</text>
+
+  <!-- Tulisan Kabupaten Tulang Bawang Barat -->
+  <text x="100" y="32" font-family="Arial, sans-serif" font-size="8" font-weight="900" fill="#FEF08A" text-anchor="middle" letter-spacing="0.8">TULANG BAWANG BARAT</text>
+  <text x="100" y="42" font-family="Arial, sans-serif" font-size="6.5" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">LAMPUNG</text>
+</svg>
