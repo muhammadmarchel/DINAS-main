@@ -88,6 +88,7 @@ export interface SurveyRespondent {
   position: string;
   email: string;
   phone: string;
+  nip?: string;
   fillDate: string;
 }
 

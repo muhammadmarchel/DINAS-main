@@ -295,6 +295,26 @@ export const SurveyFormPage: React.FC = () => {
 
       await surveyService.syncRemote();
 
+      // Sinkronkan data identitas pengisi survei ke tabel users Supabase agar langsung masuk ke Manajemen Pengguna
+      if (userEmail) {
+        try {
+          await supabase.from('users').upsert(
+            {
+              email: userEmail.toLowerCase().trim(),
+              name: respondent.respondentName || currentUser?.name || null,
+              nip: respondent.nip || currentUser?.nip || null,
+              phone: respondent.phone || currentUser?.phone || null,
+              opd_name: opdName || null,
+              status: 'active',
+              role: currentUser?.role || 'user',
+            },
+            { onConflict: 'email' }
+          );
+        } catch (uErr) {
+          console.warn('Sync respondent to users notice:', uErr);
+        }
+      }
+
       setIsSubmitting(false);
       setShowSubmitModal(false);
       toast.success('Data survey berhasil dikirim ke sistem.', 'Survey Terkirim');

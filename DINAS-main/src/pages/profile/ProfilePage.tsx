@@ -101,18 +101,20 @@ export const ProfilePage: React.FC = () => {
     setIsSaving(true);
 
     try {
-      const userEmail = currentUser?.email || form.email;
+      const cleanEmail = (currentUser?.email || form.email || '').toLowerCase().trim();
 
-      // Simpan langsung ke tabel Supabase users
+      // Simpan langsung ke tabel Supabase users dengan upsert agar data baru terjamin masuk
       const { error } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          email: cleanEmail,
           name: form.name.trim(),
           nip: form.nip.trim(),
           phone: form.phone.trim(),
           opd_name: form.opd_name.trim(),
-        })
-        .eq('email', userEmail);
+          status: 'active',
+          role: currentUser?.role || 'user',
+        }, { onConflict: 'email' });
 
       if (error) {
         toast.error('Gagal menyimpan profil: ' + error.message, 'Database Error');

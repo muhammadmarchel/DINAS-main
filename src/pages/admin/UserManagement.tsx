@@ -18,11 +18,18 @@ import {
   Clock,
   RefreshCw,
   Building,
+  Mail,
+  Phone,
+  CreditCard,
+  User as UserIcon,
 } from 'lucide-react';
 
 export interface DbUser {
   id: number;
   email: string;
+  name?: string | null;
+  nip?: string | null;
+  phone?: string | null;
   role: string;
   opd_name?: string | null;
   status: string;
@@ -42,6 +49,9 @@ export const UserManagement: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<DbUser | null>(null);
 
   // Form states
+  const [name, setName] = useState('');
+  const [nip, setNip] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [opdName, setOpdName] = useState('');
@@ -66,7 +76,7 @@ export const UserManagement: React.FC = () => {
     }
 
     if (data) {
-      setUsers(data); // masukkan ke state daftar user
+      setUsers(data);
     }
   };
 
@@ -116,15 +126,21 @@ export const UserManagement: React.FC = () => {
 
   const openAddModal = () => {
     setEditingUser(null);
+    setName('');
+    setNip('');
+    setPhone('');
     setEmail('');
     setRole('user');
-    setOpdName(opds[0]?.name || '');
+    setOpdName(DAFTAR_INSTANSI[0] || '');
     setStatus('active');
     setIsFormOpen(true);
   };
 
   const openEditModal = (u: DbUser) => {
     setEditingUser(u);
+    setName(u.name || '');
+    setNip(u.nip || '');
+    setPhone(u.phone || '');
     setEmail(u.email || '');
     setRole((u.role as 'admin' | 'user') || 'user');
     setOpdName(u.opd_name || '');
@@ -138,16 +154,21 @@ export const UserManagement: React.FC = () => {
       return;
     }
 
+    const payload = {
+      name: name.trim() || null,
+      nip: nip.trim() || null,
+      phone: phone.trim() || null,
+      email: email.trim().toLowerCase(),
+      role,
+      opd_name: opdName || null,
+      status,
+    };
+
     if (editingUser) {
       // Update user di Supabase
       const { error } = await supabase
         .from('users')
-        .update({
-          email: email.trim(),
-          role,
-          opd_name: opdName || null,
-          status,
-        })
+        .update(payload)
         .eq('id', editingUser.id);
 
       if (error) {
@@ -157,17 +178,10 @@ export const UserManagement: React.FC = () => {
 
       toast.success(`Data pengguna ${email} berhasil diperbarui.`, 'Pengguna Diperbarui');
     } else {
-      // Insert user baru di Supabase
+      // Upsert / insert user baru di Supabase
       const { error } = await supabase
         .from('users')
-        .insert([
-          {
-            email: email.trim(),
-            role,
-            opd_name: opdName || null,
-            status,
-          },
-        ]);
+        .upsert(payload, { onConflict: 'email' });
 
       if (error) {
         toast.error('Gagal menambahkan pengguna: ' + error.message, 'Error');
@@ -205,6 +219,9 @@ export const UserManagement: React.FC = () => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     return (
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.nip && u.nip.toLowerCase().includes(q)) ||
+      (u.phone && u.phone.toLowerCase().includes(q)) ||
       (u.email && u.email.toLowerCase().includes(q)) ||
       (u.role && u.role.toLowerCase().includes(q)) ||
       (u.opd_name && u.opd_name.toLowerCase().includes(q)) ||
@@ -235,7 +252,7 @@ export const UserManagement: React.FC = () => {
         <div className="flex items-center gap-2.5 self-start md:self-auto">
           <button
             onClick={() => fetchUsers()}
-            className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
             title="Muat ulang data dari database Supabase"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -243,7 +260,7 @@ export const UserManagement: React.FC = () => {
           </button>
           <button
             onClick={openAddModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-colors cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>Tambah Pengguna</span>
@@ -259,45 +276,36 @@ export const UserManagement: React.FC = () => {
               <Clock className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-amber-900">
-                Ada {pendingUsers.length} Akun Baru Menunggu Persetujuan (Pending)
+              <h4 className="font-bold text-amber-900 text-sm">
+                Ada {pendingUsers.length} Permintaan Akun Menunggu Persetujuan
               </h4>
               <p className="text-xs text-amber-700 mt-0.5">
-                Pengguna berikut baru mendaftar dan menunggu persetujuan status active:
+                Pengguna berikut telah login dengan Google dan memerlukan aktivasi oleh Administrator untuk dapat mengakses kuesioner.
               </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {pendingUsers.map((pu) => (
-                  <span
-                    key={pu.id}
-                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-amber-100/80 text-amber-900 text-xs font-semibold border border-amber-300/60"
-                  >
-                    <span>{pu.email}</span>
-                    <button
-                      onClick={() => handleUpdateStatus(pu.id, 'active')}
-                      className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors"
-                      title="Klik untuk menyetujui akun menjadi active"
-                    >
-                      Setujui
-                    </button>
-                  </span>
-                ))}
-              </div>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSearchQuery('pending')}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+            >
+              Filter Akun Pending
+            </button>
           </div>
         </div>
       )}
 
-      {/* Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {/* Search & Counter */}
-        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="relative max-w-sm w-full">
+      {/* Main Table Card */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+        {/* Search & Counter Bar */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari berdasarkan email, OPD, atau role..."
+              placeholder="Cari berdasarkan nama, NIP, email, OPD, atau role..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -323,7 +331,12 @@ export const UserManagement: React.FC = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <span className="text-[10px] text-slate-400 font-mono">#{idx + 1} (ID: {u.id})</span>
-                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{u.email}</h4>
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                      {u.name || u.email.split('@')[0]}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-slate-400" /> {u.email}
+                    </p>
                   </div>
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${
@@ -346,6 +359,14 @@ export const UserManagement: React.FC = () => {
 
                 <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">NIP:</span>
+                    <span className="font-mono text-slate-800 text-[11px]">{u.nip || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">No. WA / Telp:</span>
+                    <span className="text-slate-800 text-[11px]">{u.phone || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-slate-400 text-[11px]">OPD:</span>
                     <span className="font-medium text-slate-800 truncate max-w-[190px] text-right">
                       {u.opd_name || '(Belum Ditentukan)'}
@@ -356,7 +377,7 @@ export const UserManagement: React.FC = () => {
                     {u.status === 'pending' ? (
                       <button
                         onClick={() => handleUpdateStatus(u.id, 'active')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 hover:bg-emerald-100 hover:text-emerald-800 border border-amber-300 transition-colors shadow-xs animate-pulse"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 hover:bg-emerald-100 hover:text-emerald-800 border border-amber-300 transition-colors shadow-xs animate-pulse cursor-pointer"
                         title="Klik untuk menyetujui akun menjadi active"
                       >
                         <Clock className="w-3 h-3 text-amber-600" />
@@ -367,7 +388,7 @@ export const UserManagement: React.FC = () => {
                         onClick={() =>
                           handleUpdateStatus(u.id, u.status === 'active' ? 'inactive' : 'active')
                         }
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
                           u.status === 'active'
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-slate-200 text-slate-600'
@@ -388,14 +409,14 @@ export const UserManagement: React.FC = () => {
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={() => openEditModal(u)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>Edit User</span>
                   </button>
                   <button
                     onClick={() => setDeleteTarget(u)}
-                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl transition-colors"
+                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl transition-colors cursor-pointer"
                     title="Hapus Pengguna"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -412,9 +433,10 @@ export const UserManagement: React.FC = () => {
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/70">
                 <th className="py-3 px-4 w-12 text-center">No</th>
-                <th className="py-3 px-4">Email</th>
+                <th className="py-3 px-4">Pegawai / Pengguna</th>
+                <th className="py-3 px-4">NIP & Kontak</th>
                 <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4">OPD</th>
+                <th className="py-3 px-4">OPD / Instansi</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-center">Aksi</th>
               </tr>
@@ -422,7 +444,7 @@ export const UserManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     {isLoading ? 'Memuat data dari database Supabase...' : 'Tidak ada data pengguna di database.'}
                   </td>
                 </tr>
@@ -435,7 +457,40 @@ export const UserManagement: React.FC = () => {
                     }`}
                   >
                     <td className="py-3.5 px-4 text-center text-slate-400 font-medium">{idx + 1}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{u.email}</td>
+                    
+                    {/* Pegawai / Pengguna (Nama & Email) */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                          {(u.name ? u.name[0] : u.email[0]).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate">
+                            {u.name || <span className="text-slate-400 italic">Nama Belum Diisi</span>}
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{u.email}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* NIP & Kontak */}
+                    <td className="py-3.5 px-4">
+                      <div className="space-y-0.5">
+                        <div className="text-slate-800 font-mono text-[11px] flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{u.nip || '-'}</span>
+                        </div>
+                        <div className="text-slate-500 text-[11px] flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{u.phone || '-'}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Role */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -455,16 +510,20 @@ export const UserManagement: React.FC = () => {
                         )}
                       </span>
                     </td>
+
+                    {/* OPD */}
                     <td className="py-3.5 px-4 font-medium text-slate-700">
                       {u.opd_name || (
                         <span className="text-slate-400 italic">(Belum Ditentukan)</span>
                       )}
                     </td>
+
+                    {/* Status */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {u.status === 'pending' ? (
                         <button
                           onClick={() => handleUpdateStatus(u.id, 'active')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 hover:bg-emerald-100 hover:text-emerald-800 transition-all border border-amber-300 shadow-xs animate-pulse"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 hover:bg-emerald-100 hover:text-emerald-800 transition-all border border-amber-300 shadow-xs animate-pulse cursor-pointer"
                           title="Klik untuk menyetujui akun menjadi active"
                         >
                           <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -475,7 +534,7 @@ export const UserManagement: React.FC = () => {
                           onClick={() =>
                             handleUpdateStatus(u.id, u.status === 'active' ? 'inactive' : 'active')
                           }
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                             u.status === 'active'
                               ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                               : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -494,18 +553,20 @@ export const UserManagement: React.FC = () => {
                         </button>
                       )}
                     </td>
+
+                    {/* Aksi */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => openEditModal(u)}
-                          className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
-                          title="Edit OPD / Role / Status"
+                          className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          title="Edit Biodata & Hak Akses"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(u)}
-                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Hapus Pengguna"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -524,14 +585,49 @@ export const UserManagement: React.FC = () => {
       <Modal
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
-        description="Kelola data akun pengguna langsung di database Supabase."
+        title={editingUser ? 'Edit Pengguna & Biodata' : 'Tambah Pengguna Baru'}
+        description="Kelola data akun dan biodata pegawai langsung di database Supabase."
         confirmText={editingUser ? 'Simpan Perubahan' : 'Tambahkan Akun'}
         cancelText="Batal"
         onConfirm={handleSaveUser}
         maxWidth="md"
       >
         <div className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-bold text-slate-700">Nama Lengkap & Gelar</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Contoh: Budi Prasetyo, S.Kom."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Nomor Induk Pegawai (NIP)</label>
+              <input
+                type="text"
+                value={nip}
+                onChange={(e) => setNip(e.target.value)}
+                placeholder="199001012020011001"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">No. WhatsApp / Telepon</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="08123456789"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label className="font-bold text-slate-700">Email Akun (Google/Resmi) *</label>
             <input
@@ -543,35 +639,37 @@ export const UserManagement: React.FC = () => {
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="font-bold text-slate-700">Peran / Role *</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="user">User OPD (Pengisi Survey)</option>
-              <option value="admin">Administrator Sistem</option>
-            </select>
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Peran / Role *</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="user">User OPD (Pengisi Survey)</option>
+                <option value="admin">Administrator Sistem</option>
+              </select>
+            </div>
 
-          <div className="space-y-1">
-            <label className="font-bold text-slate-700">Instansi / OPD</label>
-            <select
-              value={opdName}
-              onChange={(e) => setOpdName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Belum Ditentukan / Bebas --</option>
-              {DAFTAR_INSTANSI.map((nama) => (
-                <option key={nama} value={nama}>
-                  {nama}
-                </option>
-              ))}
-              {opdName && !DAFTAR_INSTANSI.includes(opdName) && (
-                <option value={opdName}>{opdName}</option>
-              )}
-            </select>
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Instansi / OPD</label>
+              <select
+                value={opdName}
+                onChange={(e) => setOpdName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Belum Ditentukan / Bebas --</option>
+                {DAFTAR_INSTANSI.map((nama) => (
+                  <option key={nama} value={nama}>
+                    {nama}
+                  </option>
+                ))}
+                {opdName && !DAFTAR_INSTANSI.includes(opdName) && (
+                  <option value={opdName}>{opdName}</option>
+                )}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -628,7 +726,7 @@ export const UserManagement: React.FC = () => {
       >
         {deleteTarget && (
           <p className="text-xs text-rose-700 font-medium">
-            Hapus pengguna dari database: <strong>{deleteTarget.email}</strong> (ID: {deleteTarget.id})
+            Hapus pengguna dari database: <strong>{deleteTarget.name || deleteTarget.email}</strong> ({deleteTarget.email})
           </p>
         )}
       </Modal>
