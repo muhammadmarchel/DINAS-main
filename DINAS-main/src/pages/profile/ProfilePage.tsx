@@ -98,6 +98,11 @@ export const ProfilePage: React.FC = () => {
       return;
     }
 
+    if (!form.email.trim()) {
+      toast.warning('Email wajib diisi.', 'Validasi Form');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -214,6 +219,7 @@ export const ProfilePage: React.FC = () => {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Masukkan nama lengkap beserta gelar..."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 required
               />
@@ -230,23 +236,31 @@ export const ProfilePage: React.FC = () => {
                 type="text"
                 value={form.nip}
                 onChange={(e) => setForm({ ...form, nip: e.target.value })}
+                placeholder="Contoh: 199001012020011001"
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
             </div>
 
-            {/* 3. Email Resmi (email, read-only dari sesi login) */}
+            {/* 3. Email Resmi */}
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 uppercase tracking-wider">
-                Email Resmi (Akun Login Terverifikasi)
+                Email Resmi <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                 <input
                   type="email"
                   value={form.email}
-                  readOnly
-                  disabled
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 cursor-not-allowed font-medium"
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  readOnly={Boolean(currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5)}
+                  disabled={Boolean(currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5)}
+                  placeholder="nama@tubaba.go.id atau email Anda..."
+                  className={`w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    currentUser?.email && currentUser.email.includes('@') && currentUser.email.length > 5
+                      ? 'bg-slate-100 text-slate-500 cursor-not-allowed'
+                      : 'bg-slate-50 text-slate-900 focus:bg-white'
+                  }`}
+                  required
                 />
               </div>
             </div>
@@ -264,6 +278,7 @@ export const ProfilePage: React.FC = () => {
                   type="text"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="Contoh: 08123456789"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
               </div>

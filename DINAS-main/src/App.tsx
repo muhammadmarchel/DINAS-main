@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { MainLayout } from './components/layout/MainLayout';
@@ -23,6 +23,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requireAdmin?: boole
   requireAdmin = false,
 }) => {
   const { currentUser, isAdmin } = useAuth();
+  const location = useLocation();
 
   if (!currentUser) {
     const search = window.location.search;
@@ -37,6 +38,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requireAdmin?: boole
 
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // Pengguna OPD non-admin wajib melengkapi biodata & OPD sebelum dapat mengakses dashboard atau halaman lain
+  const isProfileIncomplete =
+    !isAdmin &&
+    (!currentUser.opdName ||
+      !currentUser.opdName.trim() ||
+      !currentUser.name ||
+      !currentUser.name.trim());
+  if (isProfileIncomplete && !location.pathname.startsWith('/profile')) {
+    return <Navigate to="/profile?onboarding=true" replace />;
   }
 
   return <>{children}</>;

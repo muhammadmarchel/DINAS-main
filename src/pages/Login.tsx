@@ -36,7 +36,7 @@ export const Login: React.FC = () => {
   // Redirect jika sudah login aktif
   useEffect(() => {
     if (currentUser && currentUser.status === 'active') {
-      if (currentUser.role !== 'admin' && (!currentUser.opdName || !currentUser.opdName.trim())) {
+      if (currentUser.role !== 'admin' && (!currentUser.opdName || !currentUser.opdName.trim() || !currentUser.name || !currentUser.name.trim())) {
         navigate('/profile?onboarding=true', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
@@ -147,11 +147,11 @@ export const Login: React.FC = () => {
     }
   };
 
-  // Login Cepat sebagai User / Responden OPD (Praktis tanpa ribet)
+  // Login sebagai User / Responden OPD: Wajib isi formulir profil terlebih dahulu
   const handleQuickUser = () => {
     loginAsRole('user');
-    toast.success('Selamat datang, Responden OPD!', 'Login Pengguna');
-    navigate('/dashboard', { replace: true });
+    toast.info('Silakan isi biodata identitas instansi Anda sebelum masuk.', 'Lengkapi Biodata');
+    navigate('/profile?onboarding=true', { replace: true });
   };
 
   // Login dengan Username/Email & Password

@@ -167,22 +167,39 @@ export const authService = {
   },
 
   loginAsRole: (role: Role, opdKey?: string): User => {
-    const users = authService.getUsers();
-    let user: User | undefined;
     if (role === 'admin') {
-      user = users.find((u) => u.role === 'admin');
-    } else {
-      if (opdKey) {
-        user = users.find((u) => u.role === 'user' && u.opdId.includes(opdKey));
-      }
-      if (!user) {
-        user = users.find((u) => u.role === 'user');
-      }
+      const users = authService.getUsers();
+      const adminUser = users.find((u) => u.role === 'admin') || {
+        id: 'user-admin-1',
+        name: 'Administrator TUBABA',
+        username: 'admin',
+        email: 'admin.survey@tubaba.go.id',
+        role: 'admin' as Role,
+        opdId: '',
+        opdName: '',
+        status: 'active' as const,
+        createdAt: new Date().toISOString(),
+      };
+      authService.setCurrentUser(adminUser);
+      return adminUser;
     }
 
-    const selected = user || users[0];
-    authService.setCurrentUser(selected);
-    return selected;
+    // Untuk user OPD: sesi bersih tanpa nama dummy, wajib isi profil
+    const cleanUser: User = {
+      id: 'user-' + Date.now(),
+      name: '',
+      username: 'pengguna_opd',
+      email: '',
+      role: 'user',
+      opdId: '',
+      opdName: '',
+      nip: '',
+      phone: '',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    };
+    authService.setCurrentUser(cleanUser);
+    return cleanUser;
   },
 
   logout: async (): Promise<void> => {
